@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens. Hex values from DESIGN-PROMPT §2, stored as RGB channels so
+   Tailwind opacity modifiers (bg-brand/10) work. Hex in comments. */
+:root {
+  --bg: 248 247 243; /* #F8F7F3 */
+  --bg-alt: 241 240 234; /* #F1F0EA */
+  --surface: 255 255 255; /* #FFFFFF */
+  --ink: 22 22 15; /* #16160F */
+  --text: 43 43 38; /* #2B2B26 */
+  --muted: 110 109 102; /* #6E6D66 */
+  --line: 228 226 218; /* #E4E2DA */
+  --brand: 31 74 61; /* #1F4A3D */
+  --brand-hover: 23 58 48; /* #173A30 */
+  --brand-soft: 232 238 234; /* #E8EEEA */
+  --brand-line: 185 205 195; /* #B9CDC3 */
+  --danger: 155 44 44; /* #9B2C2C */
+  --danger-soft: 247 236 234; /* #F7ECEA */
+  --warning: 138 95 16; /* #8A5F10 (darkened from #9A6B12 for AA on warning-soft) */
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-bg font-sans text-[17px] leading-relaxed text-text antialiased;
+  }
+  h1, h2, h3, h4 {
+    @apply text-ink;
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-brand ring-offset-2 ring-offset-bg;
+  }
+  ::selection {
+    @apply bg-brand-soft text-ink;
+  }
+  section[id] {
+    scroll-margin-top: 88px;
+  }
+}
+
+@layer components {
+  .eyebrow {
+    @apply font-mono text-[13px] font-medium uppercase tracking-eyebrow text-muted;
+  }
+  .h-display {
+    @apply font-serif font-bold leading-[1.08] text-ink;
+  }
+  .card {
+    @apply rounded-card border border-line bg-surface shadow-card;
+  }
+  .nav-link {
+    @apply font-sans text-[13px] font-medium uppercase tracking-nav text-text transition-colors hover:text-brand;
+  }
+  .mono {
+    @apply font-mono tabular-nums;
+  }
+  .field {
+    @apply h-11 w-full rounded-btn border border-line bg-surface px-3 text-[15px] text-ink placeholder:text-muted/70 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20;
+  }
+  .label {
+    @apply mb-1.5 block text-[13px] font-medium text-text;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@keyframes hub-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.35; }
+  50% { transform: scale(1.18); opacity: 0; }
+}
+.hub-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hub-pulse 3.2s ease-in-out infinite;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}

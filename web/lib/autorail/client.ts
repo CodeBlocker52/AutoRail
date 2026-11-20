@@ -1,0 +1,80 @@
+import type { WalletClient } from "viem";
+import type {
+  ActivityEvent,
+  ActivityFilter,
+  Address,
+  AdvanceOffer,
+  Agent,
+  Amount,
+  Balances,
+  CreateReceivableInput,
+  DemoPreset,
+  DemoStep,
+  GrantSessionInput,
+  JobWallet,
+  LenderPosition,
+  PayInput,
+  Payment,
+  Receivable,
+  RegisterAgentInput,
+  Repayment,
+  Role,
+  Session,
+  TypedDataPayload,
+  VaultStats,
+  WriteOptions,
+  WriteResult,
+} from "./types";
+
+/**
+ * Every read and write the UI needs. The UI talks only to hooks; hooks talk only to this.
+ * Implementations: `mock.ts` (in-memory demo) and `onchain.ts` (viem + Aevum contracts).
+ */
+export interface AutorailClient {
+  readonly mode: "mock" | "onchain";
+
+  /** Change notifications. Mock emits after each write; onchain relies on polling. */
+  subscribe(listener: () => void): () => void;
+  /** Attach the connected wallet for writes (onchain only; mock ignores). */
+  setWalletClient(wallet: WalletClient | undefined): void;
+  /** Address that acts for a demo role. Mock: scripted wallets. Onchain: the connected wallet. */
+  resolveActor(role: Role, connected?: Address): Address | undefined;
+
+  // ── Reads ─────────────────────────────────────────────
+  getBalances(account: Address): Promise<Balances>;
+  getVaultStats(): Promise<VaultStats>;
+  getLenderPosition(account: Address): Promise<LenderPosition>;
+  getAgents(): Promise<Agent[]>;
+  getReceivables(): Promise<Receivable[]>;
+  getReceivable(id: number): Promise<Receivable | null>;
+  getAdvanceOffer(receivableId: number): Promise<AdvanceOffer | null>;
+  getJobWallet(receivableId: number): Promise<JobWallet | null>;
+  getSessions(jobWallet: Address): Promise<Session[]>;
+  getPayments(jobWallet: Address): Promise<Payment[]>;
+  getRepayment(receivableId: number): Promise<Repayment | null>;
+  getActivity(filter?: ActivityFilter): Promise<ActivityEvent[]>;
+  /** EIP-712 typed data the buyer signs to confirm an invoice. */
+  getConfirmationTypedData(receivableId: number): Promise<TypedDataPayload>;
+  /** EIP-3009 ReceiveWithAuthorization typed data the buyer signs to pay. */
+  getPaymentTypedData(receivableId: number): Promise<TypedDataPayload>;
+  getDemoSteps(): Promise<DemoStep[]>;
+
+  // ── Writes (each reports stages via opts.onStage) ─────
+  depositWithPermit(amount: Amount, opts?: WriteOptions): Promise<WriteResult>;
+  withdraw(amount: Amount, opts?: WriteOptions): Promise<WriteResult>;
+  registerAgent(input: RegisterAgentInput, opts?: WriteOptions): Promise<WriteResult & { agentId: number }>;
+  createReceivable(input: CreateReceivableInput, opts?: WriteOptions): Promise<WriteResult & { receivableId: number }>;
+  confirmReceivable(receivableId: number, opts?: WriteOptions): Promise<WriteResult>;
+  /** Underwriter-signed funding: vault → new JobWallet. */
+  fundAdvance(receivableId: number, opts?: WriteOptions): Promise<WriteResult & { jobWallet: Address }>;
+  grantSession(jobWallet: Address, input: GrantSessionInput, opts?: WriteOptions): Promise<WriteResult>;
+  revokeSession(jobWallet: Address, key: Address, opts?: WriteOptions): Promise<WriteResult>;
+  pay(jobWallet: Address, input: PayInput, opts?: WriteOptions): Promise<WriteResult>;
+  /** Buyer signs EIP-3009; relayer submits; router runs the lenders-first waterfall. */
+  payInvoice(receivableId: number, opts?: WriteOptions): Promise<WriteResult & { repayment: Repayment }>;
+  markOverdue(receivableId: number, opts?: WriteOptions): Promise<WriteResult>;
+
+  // ── Demo runner ───────────────────────────────────────
+  runDemoStep(stepId: number, opts?: WriteOptions): Promise<DemoStep>;
+  resetDemo(preset: DemoPreset): Promise<void>;
+}
