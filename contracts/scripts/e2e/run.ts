@@ -8,7 +8,7 @@
  * of sending a second payment. Retries apply to RPC errors only, never to reverts.
  */
 import { execSync } from "node:child_process";
-import { keccak256, parseSignature, toHex, type Address, type Hex, type PublicClient } from "viem";
+import { decodeEventLog, keccak256, parseSignature, toHex, type Address, type Hex, type PublicClient, type TransactionReceipt } from "viem";
 import { getLogsChunked } from "./aevum-kit/logs";
 import { txUrl } from "./aevum-kit/chain";
 import {
@@ -135,6 +135,7 @@ async function tx(rec: StepRecord, from: Actor, call: Call, expectError?: string
   rec.txHashes.push(hash);
   rec.blocks!.push(r.block.toString());
   file.put(rec);
+  if (r.status === "success") checkFeedback(r.receipt);
   if (expectError) {
     if (r.status !== "reverted") throw new Error(`expected a revert (${expectError}) but the tx succeeded: ${hash}`);
     if (r.errorName !== expectError) throw new Error(`expected ${expectError}, got ${r.errorName}: ${hash}`);
@@ -149,6 +150,40 @@ async function tx(rec: StepRecord, from: Actor, call: Call, expectError?: string
 }
 
 const now = () => BigInt(Math.floor(Date.now() / 1000));
+
+/**
+ * Fails loudly if the receipt carries a FeedbackFailed event (router or facility): reputation must never be
+ * silently skipped in the demo. Returns the decoded NewFeedback events emitted by our ReputationRegistry.
+ */
+function checkFeedback(receipt: TransactionReceipt) {
+  const found: { agentId: bigint; value: bigint; tag2: string }[] = [];
+  for (const log of receipt.logs) {
+    const from = log.address.toLowerCase();
+    if (from === d.router.toLowerCase() || from === d.facility.toLowerCase()) {
+      try {
+        const ev = decodeEventLog({ abi: from === d.router.toLowerCase() ? abi.router : abi.facility, data: log.data, topics: log.topics });
+        if (ev.eventName === "FeedbackFailed") {
+          throw new Error(`FeedbackFailed emitted by ${log.address} in ${receipt.transactionHash}: ERC-8004 feedback was NOT written`);
+        }
+      } catch (e) {
+        if ((e as Error).message.startsWith("FeedbackFailed")) throw e;
+      }
+    }
+    if (from === d.reputation.toLowerCase()) {
+      try {
+        const ev = decodeEventLog({ abi: abi.reputation, data: log.data, topics: log.topics });
+        if (ev.eventName === "NewFeedback") {
+          const a = ev.args as unknown as { agentId: bigint; value: bigint; tag2: string };
+          found.push({ agentId: a.agentId, value: a.value, tag2: a.tag2 });
+        }
+      } catch {
+        /* other reputation events */
+      }
+    }
+  }
+  return found;
+}
+
 
 // ─────────────────────────── preflight ───────────────────────────
 
@@ -333,7 +368,11 @@ try {
     rec.txHashes.push(hash);
     rec.blocks!.push(r.block.toString());
     if (r.status !== "success") throw new Error(`repayment reverted: ${hash}`);
-    console.log(`   ✓ ${link(hash)} · block ${r.block}`);
+    const fb = checkFeedback(r.receipt); // throws on FeedbackFailed
+    const mine = fb.find((f) => f.agentId === sellerAgentId);
+    if (!mine) throw new Error(`no NewFeedback for seller agent #${sellerAgentId} in the repayment tx ${hash}`);
+    if (mine.value !== 100n || mine.tag2 !== "repaid_on_time") throw new Error(`unexpected feedback ${mine.value} ${mine.tag2}`);
+    console.log(`   ✓ ${link(hash)} · block ${r.block} · NewFeedback(agent #${mine.agentId}, ${mine.value}, "${mine.tag2}") in the same tx`);
     rec.amounts = { ...rec.amounts, toVault: fmt(n("expectVaultRepaid")), sellerRemainder: fmt(n("expectSellerRemainder")), swept: fmt(n("expectSwept")) };
   });
 
@@ -344,9 +383,14 @@ try {
     const fromBlock = BigInt(file.get("11")?.blocks?.[0] ?? d.deployBlock);
     const ev = (abi.reputation as unknown as readonly { type: string; name?: string }[]).find((x) => x.type === "event" && x.name === "NewFeedback");
     const logs = (await getLogsChunked(client, { address: d.reputation, event: ev as never, args: { agentId: sellerAgentId }, fromBlock })) as unknown as { transactionHash: Hex }[];
-    const tx11 = logs[logs.length - 1]?.transactionHash;
-    if (tx11) rec.txHashes.push(tx11);
-    rec.note = `getSummary(agent #${sellerAgentId}, [router]) = count ${count}, value ${value} (decimals ${decimals}); credit record onTime ${credit.onTime}, late ${credit.late}; NewFeedback logs found: ${logs.length}`;
+    const tx11 = file.get("11")?.txHashes?.[0] as Hex | undefined;
+    if (!tx11) throw new Error("step 11 has no repayment tx hash");
+    const receipt11 = await withRetry("receipt 11", () => client.getTransactionReceipt({ hash: tx11 }));
+    const fb = checkFeedback(receipt11); // throws on FeedbackFailed
+    if (!fb.some((f) => f.agentId === sellerAgentId && f.value === 100n)) throw new Error(`NewFeedback missing from ${tx11}`);
+    if (!logs.some((l) => l.transactionHash === tx11)) throw new Error(`getLogsChunked did not find the NewFeedback of ${tx11}`);
+    rec.txHashes.push(tx11);
+    rec.note = `getSummary(agent #${sellerAgentId}, [router]) = count ${count}, value ${value} (decimals ${decimals}); credit record onTime ${credit.onTime}, late ${credit.late}; NewFeedback logs found: ${logs.length} (incl. repayment tx ${tx11.slice(0, 10)}…); no FeedbackFailed`;
     console.log(`   ${rec.note}`);
     if (count < 1n || value !== 100n) throw new Error("expected an on-time feedback of 100");
   });
