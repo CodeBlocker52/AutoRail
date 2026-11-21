@@ -5,10 +5,13 @@ Everything lives in `web/`.
 
 ```bash
 pnpm install
-pnpm dev          # http://localhost:3000
-pnpm build        # production build (zero type errors)
-pnpm lint
-pnpm smoke        # runs the 12 demo steps + edge cases against the mock client
+pnpm dev             # http://localhost:3000 (mode from .env.local, see "Modes")
+pnpm build           # prebuild runs scripts/sync-deployments.mjs, then next build
+pnpm lint && pnpm typecheck
+pnpm test            # vitest: agent id 0, bigint formatting, state/event mapping, error decoding
+pnpm smoke           # mock client: the 12 demo steps + edge cases
+pnpm smoke:onchain   # read-only checks of the onchain client against Aevum (sends nothing)
+pnpm test:e2e        # Playwright against the local fork (see "E2E on the fork")
 ```
 
 ## Routes
@@ -21,11 +24,11 @@ pnpm smoke        # runs the 12 demo steps + edge cases against the mock client
 | `/app/vendor` | Vendor: register ERC-8004 agent, create invoice (file hashed in browser), invoices table, advance offer |
 | `/app/invoices/[id]` | Invoice detail: state stepper, parties, JobWallet + budget lines, session key manager, "send a payment" (try the limits), payments, waterfall, audit timeline |
 | `/app/lab` | Lab: confirm (EIP-712 in plain English + raw toggle), pay (EIP-3009, gasless) → resulting waterfall |
-| `/app/agents` | Agents console: 5 agent cards, demo runner (12 steps), live event log |
-| `/app/audit` | Filterable event timeline (invoice / agent / type), explorer links, reputation chart per agent. Accepts `?invoice=<id>` |
+| `/app/agents` | Agents console: agent cards (ERC-8004 id, owner, tokenURI data, reputation), demo runner (mock / recorded run / run live), live event log |
+| `/app/audit` | Real events plus blocked attempts, grouped by day, filterable (invoice / agent / type), explorer links, reputation chart per agent. Accepts `?invoice=<id>` |
 | `/design` | Tokens, type, and every component, for review |
 
-The role switcher (Lender / Vendor / Lab / Agents) in the top bar sets the acting wallet in mock mode and jumps to that role's screen.
+The role switcher (Lender / Vendor / Lab / Agents) in the top bar sets the acting wallet in mock mode and jumps to that role's screen. Onchain, the connected wallet acts.
 
 ## Demo-day features
 
@@ -33,8 +36,8 @@ The role switcher (Lender / Vendor / Lab / Agents) in the top bar sets the actin
 - **Transaction toasts:** bottom-right, for every write (`useTx(label)`) and every demo step. Stages: awaiting signature → pending → confirmed / reverted.
 - **Testnet banner:** top of the app, dismissible per browser session.
 - **Acting-as chip:** mock mode only. Shows which agent the selected role acts as, next to the wallet button.
-- **Landing proof strip:** the latest `invoice.repaid` event (`lib/autorail/proof.ts`). In mock mode it comes from a separate, fully-played demo run and is tagged "demo data".
-- **`NEXT_PUBLIC_DEPLOYED`:** set it to `true` once contracts are live. Until then the hero pill reads "Chain 44005 · Aevum testnet" without "live".
+- **Landing proof strip:** the latest real router `Repaid` event via `/api/proof` in onchain mode. In mock mode it comes from a separate, fully-played demo run and is tagged "demo data".
+- **`NEXT_PUBLIC_DEPLOYED=true`:** the contracts are live on Aevum, so the hero pill reads "Chain 44005 · live on Aevum testnet".
 
 ## Data flow
 
@@ -51,20 +54,80 @@ UI components ──► hooks/ (react-query) ──► AutorailClient (lib/autor
 - Mock mode: the client emits a change event after each write; `Providers` invalidates all `["autorail", …]` queries.
 - Onchain mode: queries poll every 4 s (`POLL_INTERVAL_MS`). No WebSockets.
 
-## Switching mock → onchain
+## Modes
 
-1. Deploy the contracts, then set the addresses in `.env.local` (see `.env.example`):
-   `NEXT_PUBLIC_VAULT_ADDRESS`, `…RECEIVABLE_REGISTRY…`, `…CREDIT_FACILITY…`, `…JOB_WALLET_FACTORY…`, `…REPAYMENT_ROUTER…`, `…IDENTITY_REGISTRY…`, `…REPUTATION_REGISTRY…`.
-2. Paste each compiled ABI into `lib/abi/<Contract>.ts` (keep the `as const`).
-3. Fill in the `TODO(onchain)` methods in `lib/autorail/onchain.ts`. `getBalances` already reads real tUSD8 and tQDAY.
-   - Read logs in ≤ 1,000-block chunks (`LOG_CHUNK_SIZE`).
-   - Writes get the wallet from `setWalletClient()` (wired in `Providers`). Use legacy txs if Aevum rejects EIP-1559.
-   - Blocked payment attempts don't emit events. Source them from the payout agent's log, or simulate with `simulateContract` and record the revert.
-4. Set `NEXT_PUBLIC_AUTORAIL_MODE=onchain` and restart.
+| Mode | Env | Chain | Writes | Notes |
+|---|---|---|---|---|
+| Mock | `NEXT_PUBLIC_AUTORAIL_MODE=mock` (default) | none | in memory | `/design` and rehearsals. Resets on reload. |
+| Fork | `…MODE=onchain`, `NEXT_PUBLIC_AUTORAIL_CHAIN_ID=440050` | `make fork` (anvil, 127.0.0.1:8555) | real txs on the fork | `make deploy-fork register-agents-fork fund-fork`, then `SYNC_INCLUDE_FORK=1 pnpm sync`. No real tUSD8. |
+| Aevum | `…MODE=onchain`, `…CHAIN_ID=44005` | QDay Aevum testnet | real txs | Live deployment (deploy block 3,753,316). |
+
+Addresses and ABIs are **generated**, never typed by hand: `scripts/sync-deployments.mjs` (run by `prebuild`, or `pnpm sync`) copies `contracts/deployments/<chain>.json`, the ABIs, `demo-run-44005.json`, the demo budget and the account labels into `lib/autorail/generated/`. If `../contracts` is absent (e.g. a Vercel build of `web/` only) it keeps the committed output. The fork (440050) is only included with `SYNC_INCLUDE_FORK=1`; don't commit that output.
+
+### Onchain client (`lib/autorail/onchain.ts`)
+
+- **Ids:** receivable ids are `bytes32` hex strings. ERC-8004 agent ids start at **0** (seller 0, buyer 1, underwriter 2, payout 3, GPU merchant 4), so code never uses truthy checks on agent ids (`isAgentId`, `toAgentId` in `mapping.ts`).
+- **Amounts:** `bigint`, 6 decimals, end to end.
+- **Reads:** `LogIndexer` (`indexer.ts`) reads every Autorail event with `eth_getLogs` in ≤1,000-block chunks from the deploy block, keeps an in-memory cache with an incremental cursor, discovers JobWallets from `JobWalletCreated` and backfills them. On Aevum, long ranges come from the Blockscout logs API (with timestamps); the head always comes from RPC. Views are memoised per cursor and polled every 4 s.
+- **Mapping:** `mapping.ts` maps contract enums and events exactly. The JobWallet **event** is `SessionKeyRevoked`; `SessionRevoked` is the custom **error**. Vault `Repaid(principal, fee)` and router `Repaid(id, …)` share a name and are told apart by `id`.
+- **Blocked attempts** are reverted txs (no events). On Aevum they come from the Blockscout `txlist` of each JobWallet (`isError=1`), decoded with the JobWallet ABI and re-run with `eth_call` at the previous block for the custom error. Elsewhere (fork) the client asks `/api/agents/blocked`, which the server's agent routes fill.
+- **Writes** go through the connected wagmi wallet: chain check (refuses with `WrongChain`; `NetworkGuard` offers the switch), simulate first (decoded revert before any signature), legacy tx, receipt, then the indexer syncs **until that block** before the UI refreshes. Every write uses `useTx` → `<TxStatus>`, a toast with an explorer link, and `<ErrorBanner>`.
+- **User actions:** Lend deposit (permit → `depositWithPermit`) and withdraw (capped at idle liquidity); Vendor create (invoice file hashed in the browser) and accept offer (`/api/underwrite` → `fund`); grant/revoke session; Lab confirm (EIP-712 reviewed in plain English) and gasless pay (`ReceiveWithAuthorization`, `nonce = router.authorizationNonce(id)`, submitted by `/api/relay`).
+- **Errors:** `errors.ts` decodes custom errors with the generated ABIs, FiatToken string reverts, wallet rejections and API payloads `{ code, message, txHash? }`.
+
+### Demo runner (onchain)
+
+- **Recorded run** (default): replays `demo-run-44005.json` in the explicit order 1, 2, 3, 4, 5, 6, 7a, 7b, 7c, 8, 9, 10a, 10b, 11, 12 (`RECORDED_RUN_ORDER`, never object-key order). Each step links to its real transaction. Sends nothing.
+- **Run live**: preflight (role balances, tQDAY for gas, vault liquidity; a clear "Not enough tUSD8" message), then a fresh cycle on chain with the tiny `live` profile from `contracts/config/demo.json` (0.08 deposit, 0.10 invoice, 0.075 advance, caps 0.03/0.07). Server-side role keys sign; the prompt-injection, over-cap and after-revoke attempts are real mined reverts. Steps are idempotent per run.
+- Presenter mode works in both (→ replays or runs the next step).
+
+### API routes (Node runtime, keys server-side only)
+
+| Route | Method | Body / query | Does |
+|---|---|---|---|
+| `/api/relay` | GET | – | `{ enabled, relayer }` |
+| `/api/relay` | POST | `{ receivableId, from, value, validAfter, validBefore, nonce, signature }` | Gasless repayment via `RepaymentRouter.payWithAuthorization`. Rails: router only, Funded/Overdue only, value = invoice amount, from = confirming buyer, nonce = `authorizationNonce(id)`, window ≤ 1 h, not in flight, simulated first. Rate limits per IP (`x-vercel-forwarded-for`) and per payer. |
+| `/api/underwrite` | POST | `{ receivableId, advanceBps? }` | Deterministic underwriting (credit record, buyer tier, ERC-8004 `getSummary`, facility `quote`) → signed EIP-712 Offer + plain-English explanation. |
+| `/api/agents/payout` | POST | `{ jobWallet, lines: [{ payee, amount, memo, note? }], idempotencyKey }` | Payout agent pays with its session key. Refused lines are still sent (real mined reverts) and returned decoded. |
+| `/api/agents/blocked` | GET | `?wallet=0x…` | Blocked attempts recorded by the agent routes (fallback where Blockscout isn't available). |
+| `/api/merchant/gpu` | POST | headers `X-PAYMENT: <txHash>`, `X-Request-Id` | Kestrel GPU, the **demo** x402-style merchant: 402 quote without payment; 200 once a JobWallet `Paid(memo = requestId)` is verified onchain. |
+| `/api/demo/live` | GET/POST | `{ action: "preflight" \| "start" \| "step", runId?, step? }` | "Run live" (see above). |
+| `/api/proof` | GET | – | Latest router `Repaid` (+ its ERC-8004 `NewFeedback`), for the landing proof strip. |
+
+All routes: idempotency keys where they send, retry with backoff on RPC transport errors only (never on reverts), a per-account nonce manager, structured JSON logs with redaction, no keys in logs or responses. Idempotency, rate limits and blocked records use Vercel KV / Upstash REST when `KV_REST_API_URL` is set, else memory.
+
+### Environment
+
+| Variable | Where | Purpose |
+|---|---|---|
+| `NEXT_PUBLIC_AUTORAIL_MODE` | public | `mock` (default) or `onchain` |
+| `NEXT_PUBLIC_AUTORAIL_CHAIN_ID` | public | `44005` (default) or `440050` (fork) |
+| `NEXT_PUBLIC_AEVUM_RPC_URL`, `NEXT_PUBLIC_FORK_RPC_URL` | public | RPC endpoints |
+| `NEXT_PUBLIC_DEPLOYED` | public | `true` → landing says "live on Aevum testnet" |
+| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | public | optional |
+| `UNDERWRITER_PRIVATE_KEY` | **server** | signs Offers |
+| `RELAYER_PRIVATE_KEY` | **server** | submits gasless repayments |
+| `PAYOUT_SESSION_PRIVATE_KEY` | **server** | payout agent session key |
+| `LENDER_` / `SELLER_` / `BUYER_PRIVATE_KEY` | **server** | "Run live" only |
+| `AUTORAIL_RPC_URL` | server | optional RPC override |
+| `KV_REST_API_URL`, `KV_REST_API_TOKEN` (or `UPSTASH_REDIS_REST_*`) | server | optional shared store |
+
+**Never prefix a key with `NEXT_PUBLIC_`.** On Vercel, mark the key variables *Sensitive*. Server modules import `server-only`, so a client import fails the build.
+
+### E2E on the fork
+
+```bash
+cd contracts && make fork                                   # terminal 1
+make deploy-fork register-agents-fork fund-fork             # terminal 2
+make deal TO=<lender> AMOUNT=5 && make deal TO=<buyer> AMOUNT=5
+cd ../web && SYNC_INCLUDE_FORK=1 pnpm sync && pnpm test:e2e
+```
+
+`e2e/fork.spec.ts` drives the real UI as lender → vendor → lab → vendor → lab: deposit with permit, create invoice, EIP-712 confirm, accept the signed offer, gasless pay, then checks the invoice is Repaid. Each role is a separate browser context whose key is injected with `addInitScript` (`window.__AUTORAIL_TEST_KEY__`, read from `contracts/.env` at test time). The test-key connector (`lib/testConnector.ts`) only exists when the target chain is 440050, so it can't touch Aevum. Set `E2E_SHOTS_DIR` to save screenshots.
 
 ## Mock scenario
 
-Presets: `fresh` (before step 1), `scenario` (default: steps 1–10 + INV-002), `complete` (all 12 steps; used by the landing proof strip). `MockAutorailClient` seeds the README demo. On load it runs steps 1–10 (vault 6.00, Lumen Data #12, INV-001 4.00 funded 75% / 2%, session, 3 payments, 3 blocked attempts) and creates INV-002 (2.50, awaiting the lab). The demo runner can **Reset to step 0** to rehearse all 12 steps, or **Load scenario** to return to that seeded state. State is in memory and resets on page reload.
+Presets: `fresh` (before step 1), `scenario` (default: steps 1–10 + INV-002), `complete` (all 12 steps; used by the landing proof strip). `MockAutorailClient` seeds the README demo. On load it runs steps 1–10 (vault 6.00, Lumen Data #0, INV-001 4.00 funded 75% / 2%, session, 3 payments, 3 blocked attempts) and creates INV-002 (2.50, awaiting the lab). The demo runner can **Reset to step 0** to rehearse all 12 steps, or **Load scenario** to return to that seeded state. State is in memory and resets on page reload.
 
 ## Components
 

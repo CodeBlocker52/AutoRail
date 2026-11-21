@@ -57,6 +57,18 @@ export class LogIndexer {
     return this.syncing;
   }
 
+  /** Sync until the cache includes `block` (a pass already in flight may have started before it was mined). */
+  async until(block: bigint | number, timeoutMs = 60_000) {
+    const target = BigInt(block);
+    const end = Date.now() + timeoutMs;
+    while (this.cursor < target) {
+      await this.sync();
+      if (this.cursor >= target) break;
+      if (Date.now() > end) throw new Error(`indexer: block ${target} not reached`);
+      await new Promise((r) => setTimeout(r, 750));
+    }
+  }
+
   /** Sync only if the cache is older than `maxAgeMs`. */
   async fresh(maxAgeMs = 4_000) {
     if (Date.now() - this.lastSyncAt > maxAgeMs || this.logs.length === 0) await this.sync();

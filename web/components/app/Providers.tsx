@@ -3,7 +3,8 @@ import "@rainbow-me/rainbowkit/styles.css";
 import { RainbowKitProvider, lightTheme } from "@rainbow-me/rainbowkit";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
-import { WagmiProvider, useWalletClient } from "wagmi";
+import { WagmiProvider, useAccount, useConnect, useWalletClient } from "wagmi";
+import { testKeyAvailable } from "@/lib/testConnector";
 import { wagmiConfig } from "@/lib/wagmi";
 import { AUTORAIL_KEY, useClient } from "@/hooks/useClient";
 import { RoleProvider } from "@/hooks/useRole";
@@ -16,6 +17,15 @@ function AutorailBridge() {
   const { data: wallet } = useWalletClient();
   useEffect(() => client.subscribe(() => void qc.invalidateQueries({ queryKey: [AUTORAIL_KEY] })), [client, qc]);
   useEffect(() => client.setWalletClient(wallet ?? undefined), [client, wallet]);
+  // e2e on the local fork only: connect the injected test key automatically
+  const { connect, connectors } = useConnect();
+  const { isConnected } = useAccount();
+  useEffect(() => {
+    if (!isConnected && testKeyAvailable()) {
+      const c = connectors.find((x) => x.id === "autorail-test-key");
+      if (c) connect({ connector: c });
+    }
+  }, [isConnected, connectors, connect]);
   return null;
 }
 

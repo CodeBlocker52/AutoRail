@@ -811,7 +811,7 @@ export class OnchainAutorailClient implements AutorailClient {
       const name = await this.revertName(account.address, { ...call, args: call.args ?? [] }, receipt.blockNumber - 1n);
       throw new AutorailError(name in ERROR_MESSAGES ? (name as AutorailErrorCode) : "Unknown", undefined, hash);
     }
-    await this.indexer.sync().catch(() => undefined);
+    await this.indexer.until(receipt.blockNumber).catch(() => undefined);
     this.emit();
     return { hash, block: Number(receipt.blockNumber), receipt };
   }
@@ -925,7 +925,7 @@ export class OnchainAutorailClient implements AutorailClient {
     const body = await res.json();
     if (!res.ok) throw body;
     opts?.onStage?.("pending", body.hash);
-    await this.indexer.sync();
+    await this.indexer.until(body.block);
     this.emit();
     const repayment = await this.getRepayment(receivableId);
     if (!repayment) throw new AutorailError("Unknown", "The repayment was mined but isn't indexed yet.", body.hash);
@@ -1012,7 +1012,7 @@ export class OnchainAutorailClient implements AutorailClient {
     if (!res.ok) throw body;
     this.live!.steps[stepId] = body;
     if (body.txHashes?.length) opts?.onStage?.("pending", body.txHashes[body.txHashes.length - 1]);
-    await this.indexer.sync().catch(() => undefined);
+    await (body.block ? this.indexer.until(body.block) : this.indexer.sync()).catch(() => undefined);
     this.emit();
     return (await this.getDemoSteps()).find((s) => s.id === stepId)!;
   }

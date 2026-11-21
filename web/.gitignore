@@ -8,3 +8,6 @@ next-env.d.ts
 .DS_Store
 .smoke
 .tmp-scripts
+.next-e2e
+test-results/
+playwright-report/

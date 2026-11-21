@@ -21,7 +21,7 @@ import { withRetry } from "@/lib/autorail/indexer";
 import { log } from "./log";
 
 export function deployment() {
-  const d = (DEPLOYMENTS as Record<number, (typeof DEPLOYMENTS)[44005]>)[TARGET_CHAIN_ID];
+  const d = (DEPLOYMENTS as unknown as Record<number, (typeof DEPLOYMENTS)[44005]>)[TARGET_CHAIN_ID];
   if (!d) throw new Error(`no deployment for chain ${TARGET_CHAIN_ID} (run web/scripts/sync-deployments.mjs)`);
   return d;
 }

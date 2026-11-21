@@ -130,6 +130,10 @@ export function decodeError(e: unknown): DecodedError {
   if (payload && typeof payload.code === "string" && isCode(payload.code)) {
     return { code: payload.code, message: typeof payload.message === "string" ? payload.message : ERROR_MESSAGES[payload.code], txHash: payload.txHash };
   }
+  // other API refusals (RateLimited, Preflight, NotConfigured…): keep the server's plain-English message
+  if (!(e instanceof Error) && payload && typeof payload.code === "string" && typeof payload.message === "string") {
+    return { code: "Unknown", message: payload.message, txHash: payload.txHash, raw: payload.code };
+  }
   if (e instanceof BaseError) {
     if (e.walk((x) => x instanceof UserRejectedRequestError)) return { code: "UserRejected", message: ERROR_MESSAGES.UserRejected };
     const reverted = e.walk((x) => x instanceof ContractFunctionRevertedError);
