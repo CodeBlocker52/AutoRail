@@ -1,0 +1,152 @@
+Source: https://wiki.qday.info/Knowledge/technical/developer-guide/smart-contract-development/
+Fetched: 2026-11-21 (curl, HTML stripped to text). Third-party content, kept for reference only.
+
+Smart Contract Development | QDay Wiki
+
+Skip to main content
+
+Documentation revision underway: please report issues via GitHub.
+
+On this page
+
+QDay Aevum is fully Solidity-compatible. Write contracts exactly as you would for Ethereum mainnet.
+
+// SPDX-License-Identifier: MIT
+
+pragma solidity ^0.8.20;
+
+contract HelloQDAY {
+
+    string public message = "Quantum-safe by default";
+
+    function setMessage(string calldata _msg) external {
+
+        message = _msg;
+
+    }
+
+}
+
+Deploying with Hardhat
+
+// hardhat.config.js
+
+module.exports = {
+
+  networks: {
+
+    qday: {
+
+      url: "https://rpc-test.qday.info", // QDay Aevum testnet
+
+      chainId: 44005,
+
+      accounts: [process.env.PRIVATE_KEY],
+
+    },
+
+  },
+
+};
+
+npx hardhat run scripts/deploy.js --network qday
+
+Define the chain​
+
+viem / wagmietherschains.ts
+import { defineChain } from 'viem';
+
+export const qday = defineChain({
+
+  id: 44005,
+
+  name: 'QDay Aevum',
+
+  nativeCurrency: { name: 'tQDAY', symbol: 'tQDAY', decimals: 18 },
+
+  rpcUrls: {
+
+    default: {
+
+      http: ['https://rpc-test.qday.info'],
+
+      webSocket: ['wss://rpc-test.qday.info'],
+
+    },
+
+  },
+
+  blockExplorers: { default: { name: 'QDay Aevum Explorer', url: 'https://explorer-test.qday.info' } },
+
+  testnet: true,
+
+});
+
+provider.ts
+import { JsonRpcProvider } from 'ethers';
+
+export const provider = new JsonRpcProvider('https://rpc-test.qday.info', {
+
+  chainId: 44005,
+
+  name: 'qday-aevum-testnet',
+
+});
+
+These samples target the QDay Aevum testnet (chain ID 44005). QDay mainnet (chain ID 44002) parameters will be published at launch — see Chain parameters. Get testnet tQDAY for gas from faucet.qday.info or the in-docs faucet.
+
+Read a contract (token balance)​
+
+viemethersimport { createPublicClient, http, erc20Abi } from 'viem';
+
+import { qday } from './chains';
+
+const client = createPublicClient({ chain: qday, transport: http() });
+
+const balance = await client.readContract({
+
+  address: '0x…token',
+
+  abi: erc20Abi,
+
+  functionName: 'balanceOf',
+
+  args: ['0x…user'],
+
+});
+
+import { Contract } from 'ethers';
+
+import { provider } from './provider';
+
+const erc20 = new Contract('0x…token', ['function balanceOf(address) view returns (uint256)'], provider);
+
+const balance = await erc20.balanceOf('0x…user');
+
+Write a contract (send a tx)​
+
+wagmi writeContract
+import { useWriteContract } from 'wagmi';
+
+const { writeContractAsync } = useWriteContract();
+
+await writeContractAsync({
+
+  chainId: 44005,
+
+  address: '0x…contract',
+
+  abi,
+
+  functionName: 'doSomething',
+
+  args: [/* … */],
+
+});
+
+Interactive examples
+Several pages in this wiki embed live versions of these calls — see the
+faucet (connect + write) and token list (connect + read).
+
+Define the chainRead a contract (token balance)Write a contract (send a tx)
+

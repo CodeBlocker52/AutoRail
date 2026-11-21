@@ -2,9 +2,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, ExternalLink, Loader2, Maximize2, RotateCcw, ShieldAlert, X } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  ExternalLink,
+  Loader2,
+  Maximize2,
+  RotateCcw,
+  ShieldAlert,
+  X,
+} from "lucide-react";
 import type { DemoRunnerState } from "@/hooks/useDemoRunner";
-import { explorerTx } from "@/lib/chain/aevum";
+import { explorerTx, NO_EXPLORER_LABEL, TARGET_CHAIN_ID } from "@/lib/chain/aevum";
 import { shortHash } from "@/lib/autorail/format";
 import { useVault } from "@/hooks/useVault";
 import { GridBackdrop } from "@/components/ui/GridBackdrop";
@@ -19,23 +29,30 @@ export function PresenterMode({ d, onClose }: { d: DemoRunnerState; onClose: () 
   const reduce = useReducedMotion();
   const root = useRef<HTMLDivElement>(null);
   const { data: vault } = useVault();
-  const [view, setView] = useState<number>(() => d.next?.id ?? 12);
+  // `view` is an index into d.steps (step ids may be "7a", "10b" for onchain runs)
+  const nextIdx = d.next ? d.steps.findIndex((s) => s.id === d.next!.id) : -1;
+  const [view, setView] = useState<number>(() =>
+    nextIdx >= 0 ? nextIdx : Math.max(0, d.steps.length - 1),
+  );
   const busy = !!d.active || d.runningAll;
-  const step = d.steps.find((s) => s.id === view);
-  const running = d.active?.id === view;
+  const step = d.steps[view];
+  const running = !!step && d.active?.id === step.id;
 
   const runNext = useCallback(() => {
     if (busy || !d.next || !d.supported) return;
-    setView(d.next.id);
+    setView(d.steps.findIndex((s) => s.id === d.next!.id));
     void d.runStep(d.next.id);
   }, [busy, d]);
 
-  const back = useCallback(() => setView((v) => Math.max(1, v - 1)), []);
-  const forward = useCallback(() => setView((v) => Math.min(12, v + 1)), []);
+  const back = useCallback(() => setView((v) => Math.max(0, v - 1)), []);
+  const forward = useCallback(
+    () => setView((v) => Math.min(d.steps.length - 1, v + 1)),
+    [d.steps.length],
+  );
   const reset = useCallback(async () => {
     if (busy) return;
     await d.reset("fresh");
-    setView(1);
+    setView(0);
   }, [busy, d]);
 
   useEffect(() => {
@@ -48,7 +65,7 @@ export function PresenterMode({ d, onClose }: { d: DemoRunnerState; onClose: () 
       else if (e.key === "ArrowRight") {
         e.preventDefault();
         // → runs the next step; if you went back to review, it first catches up.
-        if (d.next && view < d.next.id) forward();
+        if (nextIdx >= 0 && view < nextIdx) forward();
         else runNext();
       } else if (e.key === "ArrowLeft") {
         e.preventDefault();
@@ -64,7 +81,7 @@ export function PresenterMode({ d, onClose }: { d: DemoRunnerState; onClose: () 
       document.body.style.overflow = prev;
       if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
     };
-  }, [onClose, runNext, back, forward, reset, d.next, view]);
+  }, [onClose, runNext, back, forward, reset, nextIdx, view]);
 
   if (typeof document === "undefined" || !step) return null;
   const blocked = step.status === "done" && step.expectsRevert;
@@ -72,20 +89,40 @@ export function PresenterMode({ d, onClose }: { d: DemoRunnerState; onClose: () 
   const isNext = d.next?.id === step.id;
 
   return createPortal(
-    <div ref={root} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Demo presenter mode" className="fixed inset-0 z-[115] flex flex-col overflow-y-auto bg-bg outline-none">
+    <div
+      ref={root}
+      tabIndex={-1}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Demo presenter mode"
+      className="fixed inset-0 z-[115] flex flex-col overflow-y-auto bg-bg outline-none"
+    >
       <GridBackdrop />
       {/* top bar */}
       <header className="relative flex items-center gap-4 px-6 py-4 sm:px-10">
         <LogoMark size={30} />
-        <p className="font-mono text-[12px] uppercase tracking-[0.2em] text-muted">Autorail · live demo · Aevum 44005</p>
+        <p className="font-mono text-[12px] uppercase tracking-[0.2em] text-muted">
+          Autorail ·{" "}
+          {d.mode === "recorded" ? "recorded run" : d.mode === "live" ? "live run" : "demo"} · chain{" "}
+          {TARGET_CHAIN_ID}
+        </p>
         <div className="ml-auto flex items-center gap-2">
           <button
-            onClick={() => (document.fullscreenElement ? document.exitFullscreen() : root.current?.requestFullscreen())?.catch?.(() => undefined)}
+            onClick={() =>
+              (document.fullscreenElement
+                ? document.exitFullscreen()
+                : root.current?.requestFullscreen()
+              )?.catch?.(() => undefined)
+            }
             className="hidden h-9 items-center gap-1.5 rounded-btn border border-line bg-surface px-3 text-[13px] text-text hover:border-brand-line sm:inline-flex"
           >
             <Maximize2 className="h-3.5 w-3.5" aria-hidden /> Full screen
           </button>
-          <button onClick={onClose} className="inline-flex h-9 items-center gap-1.5 rounded-btn border border-line bg-surface px-3 text-[13px] text-text hover:border-brand-line" aria-label="Exit presenter mode (Esc)">
+          <button
+            onClick={onClose}
+            className="inline-flex h-9 items-center gap-1.5 rounded-btn border border-line bg-surface px-3 text-[13px] text-text hover:border-brand-line"
+            aria-label="Exit presenter mode (Esc)"
+          >
             <X className="h-4 w-4" aria-hidden /> Exit
           </button>
         </div>
@@ -94,9 +131,14 @@ export function PresenterMode({ d, onClose }: { d: DemoRunnerState; onClose: () 
       <main className="relative mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center px-6 pb-10 sm:px-10">
         <div className="flex flex-wrap items-center gap-3">
           <span className="font-mono text-[15px] uppercase tracking-[0.2em] text-brand">
-            Step {String(step.id).padStart(2, "0")} <span className="text-muted">/ 12</span>
+            Step {/^\d+$/.test(step.id) ? step.id.padStart(2, "0") : step.id}{" "}
+            <span className="text-muted">
+              · {view + 1} / {d.steps.length}
+            </span>
           </span>
-          <span className="rounded-full border border-line bg-surface px-3 py-1 font-mono text-[12px] uppercase tracking-[0.12em] text-text">{ACTOR[step.actor]}</span>
+          <span className="rounded-full border border-line bg-surface px-3 py-1 font-mono text-[12px] uppercase tracking-[0.12em] text-text">
+            {ACTOR[step.actor]}
+          </span>
           {step.expectsRevert && (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-danger/30 bg-danger-soft px-3 py-1 font-mono text-[12px] uppercase tracking-[0.12em] text-danger">
               <ShieldAlert className="h-3.5 w-3.5" aria-hidden /> Safety check
@@ -104,7 +146,9 @@ export function PresenterMode({ d, onClose }: { d: DemoRunnerState; onClose: () 
           )}
         </div>
         <h2 className="h-display mt-5 text-[clamp(34px,5vw,64px)] leading-[1.06]">{step.title}</h2>
-        <p className="mt-4 max-w-3xl text-[19px] leading-relaxed text-text sm:text-[21px]">{step.description}</p>
+        <p className="mt-4 max-w-3xl text-[19px] leading-relaxed text-text sm:text-[21px]">
+          {step.description}
+        </p>
         {step.amount && (
           <p className="mt-5 font-mono text-[clamp(22px,3vw,34px)] text-ink">
             {step.amount} <span className="text-[0.55em] text-muted">tUSD8</span>
@@ -115,7 +159,19 @@ export function PresenterMode({ d, onClose }: { d: DemoRunnerState; onClose: () 
         <motion.div
           key={`${step.id}-${step.status}-${running}`}
           initial={blocked && !reduce ? { boxShadow: "0 0 0 0 rgba(155,44,44,0)" } : false}
-          animate={blocked && !reduce ? { boxShadow: ["0 0 0 0 rgba(155,44,44,0.0)", "0 0 0 10px rgba(155,44,44,0.28)", "0 0 0 3px rgba(155,44,44,0.18)", "0 0 0 10px rgba(155,44,44,0.28)", "0 0 0 2px rgba(155,44,44,0.15)"] } : undefined}
+          animate={
+            blocked && !reduce
+              ? {
+                  boxShadow: [
+                    "0 0 0 0 rgba(155,44,44,0.0)",
+                    "0 0 0 10px rgba(155,44,44,0.28)",
+                    "0 0 0 3px rgba(155,44,44,0.18)",
+                    "0 0 0 10px rgba(155,44,44,0.28)",
+                    "0 0 0 2px rgba(155,44,44,0.15)",
+                  ],
+                }
+              : undefined
+          }
           transition={{ duration: 1.4, ease: "easeOut" }}
           role="status"
           aria-live="assertive"
@@ -141,7 +197,9 @@ export function PresenterMode({ d, onClose }: { d: DemoRunnerState; onClose: () 
                 </span>
                 Reverted onchain · as designed
               </p>
-              <p className="mt-3 text-[clamp(20px,2.4vw,28px)] font-medium leading-snug text-danger">{step.result?.replace(/^Reverted onchain: /, "")}</p>
+              <p className="mt-3 text-[clamp(20px,2.4vw,28px)] font-medium leading-snug text-danger">
+                {step.result?.replace(/^Reverted onchain: /, "")}
+              </p>
               <TxLinks hashes={step.txHashes} danger />
             </div>
           ) : ok ? (
@@ -152,7 +210,9 @@ export function PresenterMode({ d, onClose }: { d: DemoRunnerState; onClose: () 
                 </span>
                 Confirmed
               </p>
-              <p className="mt-3 text-[clamp(20px,2.4vw,28px)] font-medium leading-snug text-ink">{step.result}</p>
+              <p className="mt-3 text-[clamp(20px,2.4vw,28px)] font-medium leading-snug text-ink">
+                {step.result}
+              </p>
               <TxLinks hashes={step.txHashes} />
             </div>
           ) : step.status === "failed" ? (
@@ -178,8 +238,13 @@ export function PresenterMode({ d, onClose }: { d: DemoRunnerState; onClose: () 
               ["Outstanding", vault.outstanding],
               ["Fees earned", vault.feesEarned],
             ].map(([k, v]) => (
-              <div key={k as string} className="rounded-btn border border-line bg-surface px-3 py-2.5">
-                <dt className="font-mono text-[10.5px] uppercase tracking-[0.15em] text-muted">{k as string}</dt>
+              <div
+                key={k as string}
+                className="rounded-btn border border-line bg-surface px-3 py-2.5"
+              >
+                <dt className="font-mono text-[10.5px] uppercase tracking-[0.15em] text-muted">
+                  {k as string}
+                </dt>
                 <dd className="mt-1 text-[20px] text-ink">
                   <CountUp value={v as bigint} />
                 </dd>
@@ -193,29 +258,50 @@ export function PresenterMode({ d, onClose }: { d: DemoRunnerState; onClose: () 
       <footer className="relative border-t border-line bg-surface/80 px-6 py-4 backdrop-blur sm:px-10">
         <div className="mx-auto flex max-w-5xl flex-col gap-4 sm:flex-row sm:items-center">
           <ol className="flex flex-1 items-center gap-1.5" aria-label="Steps">
-            {d.steps.map((s) => (
+            {d.steps.map((s, i) => (
               <li key={s.id} className="flex-1">
                 <button
-                  onClick={() => setView(s.id)}
+                  onClick={() => setView(i)}
                   aria-label={`Step ${s.id}: ${s.title} (${s.status})`}
-                  aria-current={s.id === view ? "step" : undefined}
+                  aria-current={i === view ? "step" : undefined}
                   className={cn(
                     "block h-2 w-full rounded-full transition-colors",
-                    s.status === "done" ? (s.expectsRevert ? "bg-danger" : "bg-brand") : s.status === "failed" ? "bg-danger/50" : "bg-line",
-                    s.id === view && "ring-2 ring-ink ring-offset-2 ring-offset-surface",
+                    s.status === "done"
+                      ? s.expectsRevert
+                        ? "bg-danger"
+                        : "bg-brand"
+                      : s.status === "failed"
+                        ? "bg-danger/50"
+                        : "bg-line",
+                    i === view && "ring-2 ring-ink ring-offset-2 ring-offset-surface",
                   )}
                 />
               </li>
             ))}
           </ol>
           <div className="flex items-center gap-2">
-            <button onClick={back} className="inline-flex h-10 items-center gap-1.5 rounded-btn border border-line bg-surface px-3 text-[13px] hover:border-brand-line" aria-label="Previous step (←)">
+            <button
+              onClick={back}
+              className="inline-flex h-10 items-center gap-1.5 rounded-btn border border-line bg-surface px-3 text-[13px] hover:border-brand-line"
+              aria-label="Previous step (←)"
+            >
               <ArrowLeft className="h-4 w-4" aria-hidden /> <Kbd>←</Kbd>
             </button>
-            <button onClick={() => (d.next && view < d.next.id ? forward() : runNext())} disabled={busy || !d.next} className="inline-flex h-10 items-center gap-1.5 rounded-btn bg-brand px-4 text-[13.5px] font-medium text-white hover:bg-brand-hover disabled:opacity-50" aria-label="Run next step (→)">
-              {d.next && view < d.next.id ? "Next" : "Run step"} <ArrowRight className="h-4 w-4" aria-hidden />
+            <button
+              onClick={() => (nextIdx >= 0 && view < nextIdx ? forward() : runNext())}
+              disabled={busy || !d.next}
+              className="inline-flex h-10 items-center gap-1.5 rounded-btn bg-brand px-4 text-[13.5px] font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+              aria-label="Run next step (→)"
+            >
+              {nextIdx >= 0 && view < nextIdx ? "Next" : "Run step"}{" "}
+              <ArrowRight className="h-4 w-4" aria-hidden />
             </button>
-            <button onClick={() => void reset()} disabled={busy} className="inline-flex h-10 items-center gap-1.5 rounded-btn border border-line bg-surface px-3 text-[13px] hover:border-brand-line disabled:opacity-50" aria-label="Reset demo (R)">
+            <button
+              onClick={() => void reset()}
+              disabled={busy}
+              className="inline-flex h-10 items-center gap-1.5 rounded-btn border border-line bg-surface px-3 text-[13px] hover:border-brand-line disabled:opacity-50"
+              aria-label="Reset demo (R)"
+            >
               <RotateCcw className="h-4 w-4" aria-hidden /> <Kbd>R</Kbd>
             </button>
           </div>
@@ -227,19 +313,46 @@ export function PresenterMode({ d, onClose }: { d: DemoRunnerState; onClose: () 
 }
 
 function Kbd({ children }: { children: React.ReactNode }) {
-  return <kbd className="rounded border border-line bg-bg px-1.5 py-0.5 font-mono text-[12px] text-ink shadow-card">{children}</kbd>;
+  return (
+    <kbd className="rounded border border-line bg-bg px-1.5 py-0.5 font-mono text-[12px] text-ink shadow-card">
+      {children}
+    </kbd>
+  );
 }
 
 function TxLinks({ hashes, danger }: { hashes: string[]; danger?: boolean }) {
   if (!hashes.length) return null;
   return (
     <p className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
-      {hashes.map((h) => (
-        <a key={h} href={explorerTx(h)} target="_blank" rel="noreferrer" className={cn("inline-flex items-center gap-1.5 font-mono text-[15px] underline-offset-4 hover:underline", danger ? "text-danger" : "text-brand")}>
-          {shortHash(h)} <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-          <span className="sr-only">(view on explorer)</span>
-        </a>
-      ))}
+      {hashes.map((h) =>
+        !explorerTx(h) ? (
+          <span
+            key={h}
+            title={h}
+            className={cn(
+              "inline-flex items-center gap-1.5 font-mono text-[15px]",
+              danger ? "text-danger" : "text-text",
+            )}
+          >
+            {shortHash(h)}{" "}
+            <span className="font-sans text-[12px] text-muted">({NO_EXPLORER_LABEL})</span>
+          </span>
+        ) : (
+          <a
+            key={h}
+            href={explorerTx(h)!}
+            target="_blank"
+            rel="noreferrer"
+            className={cn(
+              "inline-flex items-center gap-1.5 font-mono text-[15px] underline-offset-4 hover:underline",
+              danger ? "text-danger" : "text-brand",
+            )}
+          >
+            {shortHash(h)} <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+            <span className="sr-only">(view on explorer)</span>
+          </a>
+        ),
+      )}
     </p>
   );
 }

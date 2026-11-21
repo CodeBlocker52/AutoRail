@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
  * Shows a fixed-point bigint and counts up (or down) to each new value.
  * The first render shows the value directly; with reduced motion it never animates.
  */
-export function CountUp({ value, decimals = 6, maxFrac = 2, className, duration = 700 }: { value: bigint; decimals?: number; maxFrac?: number; className?: string; duration?: number }) {
+export function CountUp({ value, decimals = 6, maxFrac, className, duration = 700 }: { value: bigint; decimals?: number; maxFrac?: number; className?: string; duration?: number }) {
   const reduce = useReducedMotion();
   const [shown, setShown] = useState(value);
   const [flash, setFlash] = useState(false);

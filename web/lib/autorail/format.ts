@@ -8,10 +8,14 @@ export function tusd(value: string | number): bigint {
   return parseUnits(String(value), TUSD8_DECIMALS);
 }
 
-/** Format a fixed-point bigint. Trims trailing zeros past `minFrac`. */
+/**
+ * Format a fixed-point bigint. Shows up to `maxFrac` decimals (default: all 6 of tUSD8) and trims trailing zeros
+ * down to `minFrac` (default 2): 1_200_000n → "1.20", 3_000n → "0.003", 1_224_000n → "1.224". Small amounts are
+ * never rounded away to "0.00".
+ */
 export function formatAmount(
   value: bigint,
-  { decimals = TUSD8_DECIMALS, minFrac = 2, maxFrac = 2, sign = false }: { decimals?: number; minFrac?: number; maxFrac?: number; sign?: boolean } = {},
+  { decimals = TUSD8_DECIMALS, minFrac = 2, maxFrac = decimals, sign = false }: { decimals?: number; minFrac?: number; maxFrac?: number; sign?: boolean } = {},
 ): string {
   const neg = value < 0n;
   const abs = neg ? -value : value;

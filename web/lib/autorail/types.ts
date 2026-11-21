@@ -6,6 +6,9 @@ export type { Address, Hash };
 export type Amount = bigint;
 export type Timestamp = number;
 
+/** Receivable id: bytes32 hex onchain (keccak of chainid, registry, seller, invoiceHash); "1", "2"… in mock mode. */
+export type ReceivableId = string;
+
 export type Role = "lender" | "vendor" | "lab" | "agents";
 
 export type AgentRole = "seller" | "buyer" | "underwriter" | "payout" | "merchant";
@@ -45,7 +48,7 @@ export type ReceivableState = (typeof RECEIVABLE_STATES)[number];
 export type RiskBand = "A" | "B" | "C" | "D";
 
 export interface AdvanceOffer {
-  receivableId: number;
+  receivableId: ReceivableId;
   advanceBps: number;
   feeBps: number;
   advanceAmount: Amount;
@@ -66,7 +69,7 @@ export interface Advance extends AdvanceOffer {
 }
 
 export interface Receivable {
-  id: number;
+  id: ReceivableId;
   invoiceNumber: string;
   invoiceHash: Hash;
   seller: Address;
@@ -100,7 +103,7 @@ export interface BudgetLine {
 
 export interface JobWallet {
   address: Address;
-  receivableId: number;
+  receivableId: ReceivableId;
   owner: Address;
   funded: Amount;
   balance: Amount;
@@ -146,7 +149,7 @@ export interface Payment {
 }
 
 export interface Repayment {
-  receivableId: number;
+  receivableId: ReceivableId;
   total: Amount;
   vaultPrincipal: Amount;
   vaultFee: Amount;
@@ -214,7 +217,7 @@ export interface ActivityEvent {
   status: "ok" | "blocked" | "info";
   /** Plain-English revert reason for blocked events. */
   revertReason?: string;
-  receivableId?: number;
+  receivableId?: ReceivableId;
   agentId?: number;
   actor?: string;
   txHash: Hash;
@@ -223,7 +226,7 @@ export interface ActivityEvent {
 }
 
 export interface ActivityFilter {
-  receivableId?: number;
+  receivableId?: ReceivableId;
   agentId?: number;
   types?: ActivityType[];
   limit?: number;
@@ -232,7 +235,8 @@ export interface ActivityFilter {
 export type DemoStepStatus = "pending" | "running" | "done" | "failed";
 
 export interface DemoStep {
-  id: number;
+  /** "1" … "12", or "7a", "10b" for the recorded/live onchain runs. */
+  id: string;
   title: string;
   description: string;
   actor: Role;
@@ -294,6 +298,16 @@ export interface PayInput {
   payee: Address;
   amount: Amount;
   memo: string;
+}
+
+/** Demo runner flavour: "mock" (in-memory), "recorded" (replay of demo-run-44005.json), "live" (fresh cycle on chain). */
+export type DemoMode = "mock" | "recorded" | "live";
+
+export interface LivePreflight {
+  ok: boolean;
+  problems: string[];
+  balances: Record<string, { tUSD8: string; tQDAY: string }>;
+  vaultIdle: string;
 }
 
 /** "fresh" = before step 1 · "scenario" = steps 1–10 + INV-002 awaiting the lab · "complete" = all 12 steps + INV-002. */

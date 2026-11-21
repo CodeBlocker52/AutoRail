@@ -9,7 +9,7 @@ import { cn } from "@/lib/cn";
 
 const links = [
   { href: "#how", label: "How it works" },
-  { href: "#problem", label: "Vendors" },
+  { href: "#invoice-advance", label: "Vendors" },
   { href: "#lenders", label: "Lenders" },
   { href: "#safety", label: "Safety" },
   { href: SITE.docsUrl, label: "Docs", external: true },

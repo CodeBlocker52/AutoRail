@@ -27,7 +27,7 @@ async function main() {
   await c.resetDemo("fresh");
 
   for (let i = 1; i <= 12; i++) {
-    const s = await c.runDemoStep(i);
+    const s = await c.runDemoStep(String(i));
     console.log(`  step ${String(i).padStart(2)}  ${s.status.padEnd(6)}  ${s.result ?? s.error}  [${s.txHashes.length} tx]`);
     check(`step ${i} done`, s.status === "done");
   }
@@ -36,7 +36,7 @@ async function main() {
   check("vault total 6.06", v.totalAssets === tusd("6.06"), f(v.totalAssets));
   check("vault outstanding 0", v.outstanding === 0n);
   check("fees 0.06", v.feesEarned === tusd("0.06"));
-  const rep = (await c.getRepayment(1))!;
+  const rep = (await c.getRepayment("1"))!;
   check("waterfall 3.00 / 0.06 / 0.94 / 0.20", rep.vaultPrincipal === tusd("3") && rep.vaultFee === tusd("0.06") && rep.vendorRemainder === tusd("0.94") && rep.unspentSwept === tusd("0.2"));
   check("vendor balance 1.14", (await c.getBalances(A.vendor)).tUSD8 === tusd("1.14"));
   check("lab balance 1.00", (await c.getBalances(A.lab)).tUSD8 === tusd("1"));

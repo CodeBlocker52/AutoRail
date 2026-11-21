@@ -41,7 +41,7 @@ export function CashGapDiagram() {
           >
             <span className="font-mono text-[10.5px] uppercase tracking-[0.2em] text-danger">Cash gap</span>
             <span className="mt-0.5 font-serif text-[22px] font-bold leading-none text-ink sm:text-[26px]">~53 days</span>
-            <span className="mt-1 text-[11px] text-muted">QA + Net 30–90</span>
+            <span className="mt-1 text-[11px] text-muted">first payroll (day 7) → lab pays (day 60)</span>
           </div>
         </div>
 

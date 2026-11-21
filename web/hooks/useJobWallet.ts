@@ -1,8 +1,8 @@
 "use client";
-import type { Address } from "@/lib/autorail";
+import type { Address, ReceivableId } from "@/lib/autorail";
 import { useAutorailQuery } from "./useClient";
 
-export function useJobWallet(receivableId: number | undefined) {
+export function useJobWallet(receivableId: ReceivableId | undefined) {
   return useAutorailQuery(["jobwallet", receivableId], (c) => c.getJobWallet(receivableId!), receivableId !== undefined);
 }
 

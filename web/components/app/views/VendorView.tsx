@@ -109,7 +109,7 @@ function CreateInvoiceCard({ nextNumber }: { nextNumber: string }) {
   const [amount, setAmount] = useState("");
   const [due, setDue] = useState(() => dateInput(new Date(Date.now() + 60 * 86400_000)));
   const [fileHash, setFileHash] = useState<{ name: string; hash: Hash } | null>(null);
-  const [createdId, setCreatedId] = useState<number | null>(null);
+  const [createdId, setCreatedId] = useState<string | null>(null);
 
   useEffect(() => setNum(nextNumber), [nextNumber]);
   useEffect(() => {
@@ -191,7 +191,7 @@ function CreateInvoiceCard({ nextNumber }: { nextNumber: string }) {
         <TxStatus stage={tx.stage} hash={tx.hash} error={tx.error} onDismiss={tx.reset} />
         {createdId && (
           <p className="text-[13.5px] text-brand">
-            Created. <Link href={`/app/invoices/${createdId}`} className="font-medium underline">Open invoice #{createdId}</Link>, then ask the lab to confirm it.
+            Created. <Link href={`/app/invoices/${createdId}`} className="font-medium underline">Open invoice {createdId.length > 12 ? `${createdId.slice(0, 10)}…` : `#${createdId}`}</Link>, then ask the lab to confirm it.
           </p>
         )}
       </form>

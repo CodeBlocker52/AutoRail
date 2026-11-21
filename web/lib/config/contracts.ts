@@ -1,7 +1,7 @@
 import type { Address } from "viem";
+import { DEPLOYMENTS } from "@/lib/autorail/generated/deployments";
 
 const ZERO = "0x0000000000000000000000000000000000000000" as Address;
-const env = (v: string | undefined): Address => (v && /^0x[0-9a-fA-F]{40}$/.test(v) ? (v as Address) : ZERO);
 
 /** tUSD8 on Aevum testnet: 6 decimals, EIP-2612 permit + EIP-3009. EIP-712 domain: name "tUSD8", version "2". */
 export const TUSD8 = {
@@ -11,15 +11,19 @@ export const TUSD8 = {
   eip712: { name: "tUSD8", version: "2" },
 } as const;
 
-/** Autorail contract addresses. Placeholders (zero address) until deployment; set via NEXT_PUBLIC_* env vars. */
+/**
+ * Autorail contract addresses come from the generated deployment (lib/autorail/generated/deployments.ts, written by
+ * scripts/sync-deployments.mjs from contracts/deployments). There are no address env vars: one source of truth.
+ */
+const D = DEPLOYMENTS[44005].contracts;
 export const CONTRACTS = {
-  vault: env(process.env.NEXT_PUBLIC_VAULT_ADDRESS),
-  receivableRegistry: env(process.env.NEXT_PUBLIC_RECEIVABLE_REGISTRY_ADDRESS),
-  creditFacility: env(process.env.NEXT_PUBLIC_CREDIT_FACILITY_ADDRESS),
-  jobWalletFactory: env(process.env.NEXT_PUBLIC_JOB_WALLET_FACTORY_ADDRESS),
-  repaymentRouter: env(process.env.NEXT_PUBLIC_REPAYMENT_ROUTER_ADDRESS),
-  identityRegistry: env(process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_ADDRESS),
-  reputationRegistry: env(process.env.NEXT_PUBLIC_REPUTATION_REGISTRY_ADDRESS),
+  vault: D.vault as Address,
+  receivableRegistry: D.registry as Address,
+  creditFacility: D.facility as Address,
+  jobWalletFactory: D.factory as Address,
+  repaymentRouter: D.router as Address,
+  identityRegistry: D.identity as Address,
+  reputationRegistry: D.reputation as Address,
 } as const;
 
 export const isDeployed = (a: Address) => a !== ZERO;

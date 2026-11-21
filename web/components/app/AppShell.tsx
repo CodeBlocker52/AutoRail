@@ -1,4 +1,5 @@
 "use client";
+import { TARGET_CHAIN_ID, targetChain } from "@/lib/chain/aevum";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
@@ -30,7 +31,7 @@ function SidebarFooter() {
     <div className="rounded-card border border-line bg-bg p-4">
       <div className="flex items-center gap-2">
         <span className="h-2 w-2 animate-pulse rounded-full bg-brand" aria-hidden />
-        <span className="text-[13px] font-medium text-ink">Aevum Testnet · 44005</span>
+        <span className="text-[13px] font-medium text-ink">{targetChain.name} · {TARGET_CHAIN_ID}</span>
       </div>
       <dl className="mt-3 space-y-1.5 text-[13px]">
         <div className="flex justify-between">

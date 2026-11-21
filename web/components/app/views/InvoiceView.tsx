@@ -264,7 +264,7 @@ function RepaymentCard({ r, wallet }: { r: Receivable; wallet?: JobWallet | null
   );
 }
 
-export function InvoiceView({ id }: { id: number }) {
+export function InvoiceView({ id }: { id: string }) {
   const { data: r, isLoading } = useReceivable(id);
   const { data: wallet } = useJobWallet(id);
   const { data: sessions } = useSessions(wallet?.address);

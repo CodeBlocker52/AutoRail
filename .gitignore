@@ -1,0 +1,42 @@
+# ── Secrets: never commit ──────────────────────────────
+.env
+*.env
+.env.*
+*.env.*
+!.env.example
+!**/.env.example
+keystores/
+**/keystores/
+*.key
+*.pem
+
+# Foundry broadcast logs can contain RPC data and signed txs; keep only public summaries in deployments/
+contracts/broadcast/*/44005/*
+contracts/broadcast/*/440050/*
+contracts/broadcast/**/dry-run/
+contracts/cache/
+contracts/out/
+
+# Reference clones (read-only, not part of our source)
+contracts/docs/reference/aevum-starter-kit/
+contracts/docs/reference/erc-8004-contracts/
+
+# Node / Next
+node_modules/
+.next/
+.smoke/
+*.tsbuildinfo
+.DS_Store
+
+# Foundry libs are restored from contracts/foundry.lock with `make install`
+contracts/lib/
+
+# script deps
+contracts/node_modules/
+
+# Local fork (chain 440050) rehearsal artifacts and archived demo runs
+contracts/deployments/440050*
+contracts/deployments/agents/440050-*
+contracts/deployments/demo-run-*.*.json
+contracts/broadcast/Probe.s.sol/44005/dry-run/
+contracts/deployments/demo-run-440050.json

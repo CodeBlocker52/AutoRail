@@ -1,0 +1,78 @@
+name: contracts
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+env:
+  # Pinned toolchain (see contracts/README.md "Tests")
+  FOUNDRY_VERSION: v1.10.0
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Toolchain
+        run: forge --version
+      - name: Install pinned Solidity libs
+        run: forge install --no-git foundry-rs/forge-std@v1.17.0 OpenZeppelin/openzeppelin-contracts@v5.4.0 OpenZeppelin/openzeppelin-contracts-upgradeable@v5.4.0
+      - name: make build (compile + Shanghai bytecode check)
+        run: make build
+      - name: forge test (unit, fuzz, invariants, demo; fork suite skips itself)
+        run: forge test
+      - name: forge fmt --check
+        run: forge fmt --check
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history
+      # gitleaks-action only scans the pushed range on push events; keep it for PR annotations…
+      - name: gitleaks (pushed range)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # …and scan every commit on every ref, no range (honours .gitleaksignore at the repo root).
+      - name: gitleaks (full history)
+        env:
+          GITLEAKS_VERSION: 8.21.2
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz gitleaks
+          ./gitleaks version
+          ./gitleaks detect --source . --log-opts="--all" --redact --verbose --exit-code 1
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.21.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - name: vitest (unit)
+        run: pnpm test
+      - name: mock smoke (12 demo steps)
+        run: pnpm smoke
+      - name: build (prebuild syncs contracts/deployments)
+        run: pnpm build
