@@ -14,7 +14,7 @@ contract ReceivableRegistryTest is Base {
 
     function setUp() public override {
         super.setUp();
-        due = uint64(block.timestamp + C.DUE_IN);
+        due = uint64(clock + C.DUE_IN);
     }
 
     // ─────────────── create ───────────────
@@ -83,7 +83,7 @@ contract ReceivableRegistryTest is Base {
         vm.expectRevert(ReceivableRegistry.AmountTooLarge.selector);
         a.registry.create(INVOICE_HASH, buyerAgent, uint256(type(uint128).max) + 1, due);
         vm.expectRevert(ReceivableRegistry.DueDateInPast.selector);
-        a.registry.create(INVOICE_HASH, buyerAgent, 1, uint64(block.timestamp));
+        a.registry.create(INVOICE_HASH, buyerAgent, 1, uint64(clock));
         vm.stopPrank();
     }
 
@@ -109,12 +109,12 @@ contract ReceivableRegistryTest is Base {
         assertEq(a.registry.nonces(buyer), 1);
         ReceivableRegistry.Receivable memory r = a.registry.get(id);
         assertEq(r.buyer, buyer);
-        assertEq(r.confirmedAt, block.timestamp);
+        assertEq(r.confirmedAt, clock);
     }
 
     function test_confirm_wrongPayee() public {
         bytes32 id = _create();
-        uint256 d = block.timestamp + 1 hours;
+        uint256 d = clock + 1 hours;
         bytes memory sig = _confirmSig(id, buyerKey, buyer, rogue, d);
         vm.expectRevert(abi.encodeWithSelector(ReceivableRegistry.WrongPayee.selector, rogue));
         a.registry.confirm(id, buyer, rogue, d, sig);
@@ -122,16 +122,16 @@ contract ReceivableRegistryTest is Base {
 
     function test_confirm_expiredDeadline() public {
         bytes32 id = _create();
-        uint256 d = block.timestamp + 1 hours;
+        uint256 d = clock + 1 hours;
         bytes memory sig = _confirmSig(id, buyerKey, buyer, address(a.router), d);
-        vm.warp(d + 1);
+        _warp(d + 1);
         vm.expectRevert(abi.encodeWithSelector(ReceivableRegistry.SignatureExpired.selector, d));
         a.registry.confirm(id, buyer, address(a.router), d, sig);
     }
 
     function test_confirm_wrongSigner() public {
         bytes32 id = _create();
-        uint256 d = block.timestamp + 1 hours;
+        uint256 d = clock + 1 hours;
         bytes memory sig = _confirmSig(id, sellerKey, buyer, address(a.router), d); // signed by the seller
         vm.expectRevert(ReceivableRegistry.InvalidSignature.selector);
         a.registry.confirm(id, buyer, address(a.router), d, sig);
@@ -139,7 +139,7 @@ contract ReceivableRegistryTest is Base {
 
     function test_confirm_signerMustBeTheBuyerAgent() public {
         bytes32 id = _create();
-        uint256 d = block.timestamp + 1 hours;
+        uint256 d = clock + 1 hours;
         bytes memory sig = _confirmSig(id, sellerKey, seller, address(a.router), d);
         vm.expectRevert(abi.encodeWithSelector(ReceivableRegistry.NotBuyer.selector, seller));
         a.registry.confirm(id, seller, address(a.router), d, sig);
@@ -148,7 +148,7 @@ contract ReceivableRegistryTest is Base {
     function test_confirm_replayAcrossReceivablesFails() public {
         bytes32 id1 = _create();
         bytes32 id2 = _createWith(keccak256("INV-002"), C.INVOICE_AMOUNT);
-        uint256 d = block.timestamp + 1 hours;
+        uint256 d = clock + 1 hours;
         bytes memory sig = _confirmSig(id1, buyerKey, buyer, address(a.router), d);
         a.registry.confirm(id1, buyer, address(a.router), d, sig);
         vm.expectRevert(ReceivableRegistry.InvalidSignature.selector);
@@ -163,12 +163,12 @@ contract ReceivableRegistryTest is Base {
                 ReceivableRegistry.InvalidState.selector, id, ReceivableRegistry.State.Confirmed
             )
         );
-        a.registry.confirm(id, buyer, address(a.router), block.timestamp + 1, "");
+        a.registry.confirm(id, buyer, address(a.router), clock + 1, "");
     }
 
     function test_confirm_wrongChainIdFails() public {
         bytes32 id = _create();
-        uint256 d = block.timestamp + 1 hours;
+        uint256 d = clock + 1 hours;
         // signed for this chain, submitted on another (chain-id is part of the EIP-712 domain)
         bytes memory sig = _confirmSig(id, buyerKey, buyer, address(a.router), d);
         vm.chainId(44005);
@@ -184,7 +184,7 @@ contract ReceivableRegistryTest is Base {
         a.roles.setBuyerTier(safeAgent, 1);
         vm.prank(seller);
         bytes32 id = a.registry.create(keccak256("INV-SAFE"), safeAgent, 1_000_000, due);
-        uint256 d = block.timestamp + 1 hours;
+        uint256 d = clock + 1 hours;
         bytes memory sig = _confirmSig(id, ownerKey, address(safe), address(a.router), d);
         a.registry.confirm(id, address(safe), address(a.router), d, sig);
         assertEq(a.registry.get(id).buyer, address(safe));
@@ -203,7 +203,7 @@ contract ReceivableRegistryTest is Base {
         vm.prank(seller);
         bytes32 id = fresh.create(INVOICE_HASH, buyerAgent, 1, due);
         vm.expectRevert(ReceivableRegistry.RouterNotSet.selector);
-        fresh.confirm(id, buyer, address(a.router), block.timestamp + 1, "");
+        fresh.confirm(id, buyer, address(a.router), clock + 1, "");
     }
 
     // ─────────────── transitions & views ───────────────

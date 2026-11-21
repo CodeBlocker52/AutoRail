@@ -28,7 +28,7 @@ Testnet software. **Unaudited.** tUSD8 and tQDAY have no monetary value.
 | Waterfall conserves every unit (buyer paid = vault + seller − swept, no mint or burn) | `testFuzz_waterfallConservesEveryUnit` |
 | Pricing is bounded and monotone in buyer tier | `testFuzz_bandsAreBoundedAndConsistent` |
 
-Invariant runs: 128 × depth 64 (8,192 calls) by default; `FOUNDRY_PROFILE=ci` raises fuzz runs to 5,000.
+Tests keep time in a storage `clock` (never a `block.timestamp`-derived local across `vm.warp`), so they don't depend on optimizer choices. Invariant runs: 128 × depth 64 (8,192 calls) by default; `FOUNDRY_PROFILE=ci` raises fuzz runs to 5,000.
 
 ## Signature security (tested)
 

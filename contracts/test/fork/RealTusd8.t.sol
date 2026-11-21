@@ -48,7 +48,7 @@ contract RealTusd8ForkTest is Base {
     }
 
     function test_fork_permitDeposit_realToken() public {
-        uint256 deadline = block.timestamp + 1 hours;
+        uint256 deadline = clock + 1 hours;
         (uint8 v, bytes32 r, bytes32 s) = Sigs.signPermit(
             vm,
             lenderKey,
@@ -63,6 +63,19 @@ contract RealTusd8ForkTest is Base {
         uint256 shares = a.vault.depositWithPermit(C.LENDER_DEPOSIT, lender, deadline, v, r, s);
         assertEq(a.vault.previewRedeem(shares), C.LENDER_DEPOSIT);
         assertEq(token.balanceOf(lender), 0);
+    }
+
+    /// The real tUSD8 (FiatToken v2.2) checks the time window before the signature: an expired authorization
+    /// signed by the wrong key reports "expired". MockTUSD8 mirrors this order.
+    function test_fork_realTusd8_checkOrder_timeBeforeSignature() public {
+        (bytes32 id,) = _funded();
+        bytes32 nonce = a.router.authorizationNonce(id);
+        uint256 vb = clock + 1 hours;
+        (uint8 v, bytes32 r, bytes32 s) = _payAuth(sellerKey, buyer, C.INVOICE_AMOUNT, nonce, vb);
+        _warp(vb);
+        vm.prank(address(a.router));
+        vm.expectRevert(bytes("FiatTokenV2: authorization is expired"));
+        token.receiveWithAuthorization(buyer, address(a.router), C.INVOICE_AMOUNT, 0, vb, nonce, v, r, s);
     }
 
     function test_fork_fullFlow_realReceiveWithAuthorization() public {

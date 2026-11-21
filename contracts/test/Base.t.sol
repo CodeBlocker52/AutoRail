@@ -40,11 +40,22 @@ abstract contract Base is Test, AutorailDeployer {
     uint256 internal payoutAgent;
     uint256 internal merchantAgent;
 
+    /// @dev Test clock kept in STORAGE. Never derive a value from `block.timestamp` and use it across a
+    ///      `vm.warp`: TIMESTAMP is constant within a transaction, so the (via-IR) optimizer may legally
+    ///      re-materialize `TIMESTAMP + x` at the use site, after the warp. A storage read can't be swapped.
+    uint256 internal constant T0 = 1_790_000_000;
+    uint256 internal clock;
+
+    function _warp(uint256 t) internal {
+        clock = t;
+        vm.warp(t);
+    }
+
     bytes32 internal constant INVOICE_HASH = keccak256("INV-001 Frontier Lab RLHF preference batch 7");
     uint256 internal offerNonce;
 
     function setUp() public virtual {
-        vm.warp(1_790_000_000); // fixed, realistic timestamp
+        _warp(T0); // fixed, realistic timestamp
         (seller, sellerKey) = makeAddrAndKey("seller");
         (buyer, buyerKey) = makeAddrAndKey("buyer");
         (underwriter, underwriterKey) = makeAddrAndKey("underwriter");
@@ -106,7 +117,7 @@ abstract contract Base is Test, AutorailDeployer {
 
     function _createWith(bytes32 invoiceHash, uint256 amount) internal returns (bytes32 id) {
         vm.prank(seller);
-        id = a.registry.create(invoiceHash, buyerAgent, amount, uint64(block.timestamp + C.DUE_IN));
+        id = a.registry.create(invoiceHash, buyerAgent, amount, uint64(clock + C.DUE_IN));
     }
 
     function _confirmSig(bytes32 id, uint256 key, address signer, address payee, uint256 deadline)
@@ -119,7 +130,7 @@ abstract contract Base is Test, AutorailDeployer {
     }
 
     function _confirm(bytes32 id) internal {
-        uint256 deadline = block.timestamp + 1 hours;
+        uint256 deadline = clock + 1 hours;
         bytes memory sig = _confirmSig(id, buyerKey, buyer, address(a.router), deadline);
         a.registry.confirm(id, buyer, address(a.router), deadline, sig);
     }
@@ -140,7 +151,7 @@ abstract contract Base is Test, AutorailDeployer {
             advanceAmount: advance,
             feeBps: feeBps,
             payees: _payees(),
-            offerExpiry: uint64(block.timestamp + 1 hours),
+            offerExpiry: uint64(clock + 1 hours),
             nonce: ++offerNonce
         });
     }
@@ -166,7 +177,7 @@ abstract contract Base is Test, AutorailDeployer {
 
     function _grant(JobWallet jw) internal {
         vm.prank(seller);
-        jw.grantSession(payout, uint64(block.timestamp + C.SESSION_TTL), C.PER_TX_CAP, C.TOTAL_CAP, _payees());
+        jw.grantSession(payout, uint64(clock + C.SESSION_TTL), C.PER_TX_CAP, C.TOTAL_CAP, _payees());
     }
 
     function _payAuth(uint256 key, address from, uint256 value, bytes32 nonce, uint256 validBefore)
@@ -190,7 +201,7 @@ abstract contract Base is Test, AutorailDeployer {
     }
 
     function _repay(bytes32 id) internal {
-        uint256 validBefore = block.timestamp + 1 hours;
+        uint256 validBefore = clock + 1 hours;
         bytes32 nonce = a.router.authorizationNonce(id);
         (uint8 v, bytes32 r, bytes32 s) = _payAuth(buyerKey, buyer, C.INVOICE_AMOUNT, nonce, validBefore);
         vm.prank(relayer);

@@ -69,16 +69,16 @@ contract JobWalletTest is Base {
     function test_grant_onlyOwner() public {
         vm.prank(rogue);
         vm.expectRevert(JobWallet.NotOwner.selector);
-        jw.grantSession(payout, uint64(block.timestamp + 1), 1, 1, _payees());
+        jw.grantSession(payout, uint64(clock + 1), 1, 1, _payees());
     }
 
     function test_grant_validation() public {
-        uint64 exp = uint64(block.timestamp + 1 hours);
+        uint64 exp = uint64(clock + 1 hours);
         vm.startPrank(seller);
         vm.expectRevert(JobWallet.ZeroAddress.selector);
         jw.grantSession(address(0), exp, 1, 1, _payees());
         vm.expectRevert(JobWallet.InvalidSession.selector);
-        jw.grantSession(payout, uint64(block.timestamp), 1, 1, _payees());
+        jw.grantSession(payout, uint64(clock), 1, 1, _payees());
         vm.expectRevert(JobWallet.InvalidSession.selector);
         jw.grantSession(payout, exp, 0, 1, _payees());
         vm.expectRevert(JobWallet.InvalidSession.selector);
@@ -97,7 +97,7 @@ contract JobWalletTest is Base {
         vm.prank(payout);
         jw.pay(annotatorA, C.PAY_A, "");
         vm.prank(seller);
-        jw.grantSession(payout, uint64(block.timestamp + 1 hours), 100, 200, _one(annotatorB));
+        jw.grantSession(payout, uint64(clock + 1 hours), 100, 200, _one(annotatorB));
         JobWallet.Session memory s = jw.sessionOf(payout);
         assertEq(s.spent, 0);
         assertEq(s.version, 2);
@@ -112,7 +112,7 @@ contract JobWalletTest is Base {
         vm.startPrank(seller);
         vm.expectRevert(abi.encodeWithSelector(JobWallet.NoSession.selector, payout));
         jw.revokeSession(payout);
-        jw.grantSession(payout, uint64(block.timestamp + 1 hours), 1, 1, _payees());
+        jw.grantSession(payout, uint64(clock + 1 hours), 1, 1, _payees());
         vm.expectEmit(true, false, false, false, address(jw));
         emit JobWallet.SessionKeyRevoked(payout);
         jw.revokeSession(payout);
@@ -128,8 +128,7 @@ contract JobWalletTest is Base {
 
     function test_pay_checkOrder() public {
         // a call that breaks every rule reports them in the documented order.
-        // (track time in a local: the optimizer may reuse a TIMESTAMP read across vm.warp)
-        uint256 t = block.timestamp;
+        uint256 t = clock;
         vm.prank(seller);
         jw.grantSession(payout, uint64(t + 1 hours), 100, 150, _one(annotatorA));
         vm.prank(payout);
@@ -138,7 +137,7 @@ contract JobWalletTest is Base {
         vm.prank(seller);
         jw.revokeSession(payout);
         t += 2 hours;
-        vm.warp(t);
+        _warp(t);
         vm.prank(payout);
         vm.expectRevert(JobWallet.SessionRevoked.selector); // 1st: revoked (even though also expired etc.)
         jw.pay(rogue, 1_000_000, "");
@@ -148,7 +147,7 @@ contract JobWalletTest is Base {
         vm.prank(payout);
         jw.pay(annotatorA, 100, "");
         t += 2 hours;
-        vm.warp(t);
+        _warp(t);
         vm.prank(payout);
         vm.expectRevert(JobWallet.SessionExpired.selector); // 2nd: expired
         jw.pay(rogue, 1_000_000, "");
@@ -178,7 +177,7 @@ contract JobWalletTest is Base {
 
     function test_pay_insufficientBalance() public {
         vm.prank(seller);
-        jw.grantSession(payout, uint64(block.timestamp + 1 hours), 2_000_000, 3_000_000, _payees());
+        jw.grantSession(payout, uint64(clock + 1 hours), 2_000_000, 3_000_000, _payees());
         vm.prank(payout);
         vm.expectRevert(abi.encodeWithSelector(JobWallet.InsufficientBalance.selector, 2_000_000, C.ADVANCE));
         jw.pay(annotatorA, 2_000_000, "");
@@ -219,7 +218,7 @@ contract JobWalletTest is Base {
         jw.pay(annotatorA, 1, "");
         vm.prank(seller);
         vm.expectRevert(JobWallet.Closed.selector);
-        jw.grantSession(payout, uint64(block.timestamp + 1), 1, 1, _payees());
+        jw.grantSession(payout, uint64(clock + 1), 1, 1, _payees());
         vm.prank(address(a.router));
         assertEq(jw.sweep(seller), 0, "second sweep moves nothing");
     }
@@ -231,7 +230,7 @@ contract JobWalletTest is Base {
         perTx = uint128(bound(perTx, 1, C.ADVANCE));
         total = uint128(bound(total, perTx, C.ADVANCE));
         vm.prank(seller);
-        jw.grantSession(payout, uint64(block.timestamp + 1 hours), perTx, total, _payees());
+        jw.grantSession(payout, uint64(clock + 1 hours), perTx, total, _payees());
         uint256 paid;
         for (uint256 i; i < tries.length; i++) {
             uint256 amt = bound(tries[i], 1, C.ADVANCE);

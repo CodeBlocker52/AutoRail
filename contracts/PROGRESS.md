@@ -5,7 +5,7 @@
 | 0 · Sources + chain probe | ✅ 2026-11-21 | `docs/reference/*`, `docs/CHAIN.md`, probe contract on Aevum (`0xF9b1…6880`, tx `0x70ee89f6…efd1`) |
 | 1 · Project, accounts, secrets | ✅ | `foundry.toml`, `Makefile`, `.env` (gitignored), `docs/ACCOUNTS.md`, `.env.example`, Fund/Recycle scripts |
 | 2 · Contracts | ✅ | `src/` (8 contracts + 2 libraries + vendored ERC-8004) |
-| 3 · Tests | ✅ | **115 tests + 6 invariants** (`forge test` prints "116 passed": it counts the invariant suite as one) **+ 3 fork tests** on the real tUSD8. Line coverage **97.8%** on `src/` (excluding vendored ERC-8004). `forge fmt --check` clean. `make build` Shanghai-safe |
+| 3 · Tests | ✅ | `forge test` (forge 1.10.0): **118 passed, 0 failed, 1 skipped (119 total)** = 117 tests + the invariant suite (6 invariants, counted as 1); the skip is the fork suite without `--fork-url`. `make test-fork`: **4 passed** on the real tUSD8. Line coverage **97.88%** on `src/` (excluding vendored ERC-8004). `forge fmt --check` clean. `make build` Shanghai-safe |
 | 4a · Fork rehearsal | ✅ ×2 | Two full runs on fresh forks (chain 440050): fund → deploy → register → e2e 12/12. Run 2 included a **crash test**: killed mid-tx with mining paused; the rerun resumed the in-flight hash, with no duplicate deposit (lender nonce stayed 1) |
 | 4b · Deploy to Aevum | ✅ 2026-11-21 | Topped up to 3.00 tUSD8 (≥ 2.81 checked first). Commit `957edabb` (clean). Block 3,753,316. `make check-deployment` **55/55** |
 | 5 · E2E on Aevum | ✅ | 15/15 step records, 3 mined reverts decoded, `NewFeedback` 100 in the repayment tx, no `FeedbackFailed`. `deployments/demo-run-44005.json` |
@@ -33,6 +33,28 @@
 ## Fork rehearsal numbers (chain 440050)
 - Deploy ≈ 0.0163 tQDAY, agent registration ≈ 0.0045, demo ≈ 0.0022 → **≈ 0.023 tQDAY of gas**. Funding moves 2.2 tQDAY to the role accounts (recyclable, not gas).
 - Final balances: vault 1.21 → **1.234** (+1.20 principal, +0.024 fee); seller **+0.476** (0.376 + 0.10 swept); annotators 0.40/0.40; merchant 0.30; JobWallet 0.
+
+## Test fix: warp vs re-materialized TIMESTAMP (2026-11-21, no `src/` change)
+
+Symptom (reported on forge 1.10.0): `test_wrongSignerOrExpiredAuthorization` failed with `InvalidSignature() != AuthorizationExpired()`.
+
+Investigation:
+- Reproduced on **both** forge 1.9.0 and 1.10.0. Same solc, same settings, **identical bytecode** for the test contract on both.
+- The deciding factor is the **build scope**, not the version: `forge test --force --match-test X` (sparse build) passed on both; a full `forge build --force` failed on both.
+- The upgrade only exposed it, because installing a new forge invalidates the cache and forces a full build.
+
+Root cause, from the trace:
+- The test computed `vb = block.timestamp + 1 hours`, signed `ReceiveWithAuthorization(…, validBefore = vb)`, called `vm.warp(vb)`, then submitted `vb`.
+- The signed digest used `validBefore = 1,790,003,600`, but the call submitted **1,790,007,200**. The full-build via-IR code had re-materialized `TIMESTAMP + 3600` at the call site after the warp. That is a legal optimization, since TIMESTAMP is constant within a real transaction.
+- The mock then recovered a different signer and correctly reverted `InvalidSignature`.
+- `forge lint` had flagged the same pattern (`environment-read-across-mutation`) in 6 test locations.
+
+Fix (tests only):
+- `Base` keeps the test time in a **storage** `clock` with `_warp(t)`. A storage read can't be replaced by a fresh TIMESTAMP.
+- Every test uses `clock`/`_warp`; the lint count is now 0.
+- The test is split into `test_wrongSigner_rejectsAuthorization` and `test_expiredAuthorization_rejected`.
+- `MockTUSD8` already checked in FiatToken v2.2's order (payee → time window → nonce → signature), so it was left unchanged. New tests pin that order: `test_mockTusd8_checkOrder_matchesFiatToken` on the mock, and `test_fork_realTusd8_checkOrder_timeBeforeSignature` on the real token (expired + wrong signer → `"FiatTokenV2: authorization is expired"`).
+- `git diff 957edabb -- contracts/src` is empty: deployed bytecode still matches the source.
 
 ## Aevum deployment log (2026-11-21)
 

@@ -75,7 +75,7 @@ contract CreditFacilityTest is Base {
     function test_fund_offerExpired() public {
         CreditFacility.Offer memory o = _offer(id, C.ADVANCE, C.FEE_BPS);
         bytes memory sig = _signOffer(o, underwriterKey);
-        vm.warp(o.offerExpiry + 1);
+        _warp(o.offerExpiry + 1);
         vm.prank(seller);
         vm.expectRevert(abi.encodeWithSelector(CreditFacility.OfferExpired.selector, o.offerExpiry));
         a.facility.fund(o, sig);
@@ -190,7 +190,7 @@ contract CreditFacilityTest is Base {
         uint256 at = a.registry.get(id).dueDate + a.facility.gracePeriod();
         vm.expectRevert(abi.encodeWithSelector(CreditFacility.NotYet.selector, at));
         a.facility.markOverdue(id);
-        vm.warp(at + 1);
+        _warp(at + 1);
         vm.prank(rogue); // permissionless
         a.facility.markOverdue(id);
         assertEq(uint8(_state(id)), uint8(ReceivableRegistry.State.Overdue));
@@ -208,7 +208,7 @@ contract CreditFacilityTest is Base {
         uint256 at = a.registry.get(id).dueDate + a.facility.defaultPeriod();
         vm.expectRevert(abi.encodeWithSelector(CreditFacility.NotYet.selector, at));
         a.facility.markDefault(id);
-        vm.warp(at + 1);
+        _warp(at + 1);
         uint256 idleBefore = a.vault.idle();
         vm.expectEmit(true, true, false, true, address(a.facility));
         emit CreditFacility.Defaulted(id, sellerAgent, C.ADVANCE, C.ADVANCE - C.PAY_A);
@@ -236,9 +236,9 @@ contract CreditFacilityTest is Base {
 
     function test_markDefault_fromOverdue_andWrongStates() public {
         _fundWith(_offer(id, C.ADVANCE, C.FEE_BPS), underwriterKey);
-        vm.warp(a.registry.get(id).dueDate + a.facility.gracePeriod() + 1);
+        _warp(a.registry.get(id).dueDate + a.facility.gracePeriod() + 1);
         a.facility.markOverdue(id);
-        vm.warp(a.registry.get(id).dueDate + a.facility.defaultPeriod() + 1);
+        _warp(a.registry.get(id).dueDate + a.facility.defaultPeriod() + 1);
         a.facility.markDefault(id);
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -248,7 +248,7 @@ contract CreditFacilityTest is Base {
         a.facility.markDefault(id);
         // a confirmed-but-unfunded invoice can't default
         bytes32 id2 = _createWith(keccak256("INV-X"), 100_000);
-        vm.warp(a.registry.get(id2).dueDate + a.facility.defaultPeriod() + 1);
+        _warp(a.registry.get(id2).dueDate + a.facility.defaultPeriod() + 1);
         vm.expectRevert(
             abi.encodeWithSelector(
                 CreditFacility.InvalidState.selector, id2, ReceivableRegistry.State.Created
@@ -262,7 +262,7 @@ contract CreditFacilityTest is Base {
         // the seller approves the facility as operator → ERC-8004 rejects the facility's feedback as "self"
         vm.prank(seller);
         a.identity.setApprovalForAll(address(a.facility), true);
-        vm.warp(a.registry.get(id).dueDate + a.facility.defaultPeriod() + 1);
+        _warp(a.registry.get(id).dueDate + a.facility.defaultPeriod() + 1);
         vm.expectEmit(true, true, false, false, address(a.facility));
         emit CreditFacility.FeedbackFailed(id, sellerAgent);
         a.facility.markDefault(id);

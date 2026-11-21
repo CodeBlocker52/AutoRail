@@ -103,13 +103,17 @@ The three blocked attempts are **real mined transactions** with status `reverted
 
 ## Tests
 
-| Suite | Count |
-|---|---|
-| Unit, fuzz and demo tests (`make test`) | **115 tests + 6 invariants** (Foundry prints "116 passed" because it reports the invariant suite as one) |
-| Fork tests on the real tUSD8 (`make test-fork`) | **3** |
-| Line coverage on `src/` (vendored ERC-8004 excluded, `make coverage`) | **97.8%** |
+Toolchain is pinned: **Foundry `forge 1.10.0` (commit `083e2299`)**, solc 0.8.24, EVM shanghai. CI installs exactly this version.
 
-Highlights: `test/Demo.t.sol` (the 12-step scenario with balance checks after every step), waterfall-conservation and session-cap fuzzing, 6 invariants, signature replay / chain ID / payee / expiry / signer / nonce-binding tests, and reentrancy through a hostile token.
+| Command | Output (exact) | What it covers |
+|---|---|---|
+| `forge test` (= `make test`, no RPC) | **118 passed, 0 failed, 1 skipped (119 total)** | 117 unit/fuzz/demo tests + the invariant suite (6 invariants, which Foundry counts as 1). The 1 skipped is the fork suite, which skips itself without `--fork-url` |
+| `make test-fork` (`--fork-url` Aevum) | **4 passed** | real tUSD8: domain separator, permit deposit, full repayment via `receiveWithAuthorization`, FiatToken check order |
+| `make coverage` | **97.88% lines** on `src/` (vendored ERC-8004 excluded) | |
+
+Highlights: `test/Demo.t.sol` (the 12-step scenario with balance checks after every step), waterfall-conservation and session-cap fuzzing, 6 invariants, signature replay / chain ID / payee / expiry / signer / nonce-binding tests, the tUSD8 check order (payee → time window → nonce → signature) on both the mock and the real token, and reentrancy through a hostile token.
+
+Tests keep time in a storage `clock` (`Base._warp`) and never reuse a `block.timestamp`-derived value across `vm.warp`. TIMESTAMP is constant within a transaction, so the via-IR optimizer may legally re-materialize such an expression after a warp, and the result then depends on the build (see PROGRESS.md, "Test fix: warp vs re-materialized TIMESTAMP").
 
 ## Run it
 
@@ -117,7 +121,7 @@ Highlights: `test/Demo.t.sol` (the 12-step scenario with balance checks after ev
 cd contracts
 make install            # forge libs (foundry.lock) + script deps
 make build              # compile + Shanghai bytecode check
-make test               # 115 tests + 6 invariants
+make test               # 118 passed, 1 skipped (fork suite)
 make test-fork          # real tUSD8 on a fork, no funds needed
 
 # free rehearsal on a local Aevum copy (chain 440050)

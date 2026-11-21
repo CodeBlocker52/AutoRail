@@ -27,7 +27,7 @@ contract RepaymentRouterTest is Base {
         view
         returns (uint8, bytes32, bytes32, uint256)
     {
-        uint256 vb = block.timestamp + 1 hours;
+        uint256 vb = clock + 1 hours;
         (uint8 v, bytes32 r, bytes32 s) = _payAuth(key, from, value, nonce, vb);
         return (v, r, s, vb);
     }
@@ -84,15 +84,51 @@ contract RepaymentRouterTest is Base {
         a.router.payWithAuthorization(id, rogue, C.INVOICE_AMOUNT, 0, vb, nonce, v, r, s);
     }
 
-    function test_wrongSignerOrExpiredAuthorization() public {
+    function test_wrongSigner_rejectsAuthorization() public {
         bytes32 nonce = a.router.authorizationNonce(id);
         (uint8 v, bytes32 r, bytes32 s, uint256 vb) = _sigFor(sellerKey, buyer, C.INVOICE_AMOUNT, nonce);
         vm.expectRevert(MockTUSD8.InvalidSignature.selector);
         a.router.payWithAuthorization(id, buyer, C.INVOICE_AMOUNT, 0, vb, nonce, v, r, s);
-        (v, r, s, vb) = _sigFor(buyerKey, buyer, C.INVOICE_AMOUNT, nonce);
-        vm.warp(vb);
+    }
+
+    function test_expiredAuthorization_rejected() public {
+        bytes32 nonce = a.router.authorizationNonce(id);
+        (uint8 v, bytes32 r, bytes32 s, uint256 vb) = _sigFor(buyerKey, buyer, C.INVOICE_AMOUNT, nonce);
+        _warp(vb); // validBefore is exclusive: at vb the authorization is expired
         vm.expectRevert(MockTUSD8.AuthorizationExpired.selector);
         a.router.payWithAuthorization(id, buyer, C.INVOICE_AMOUNT, 0, vb, nonce, v, r, s);
+    }
+
+    /// The mock must check in the same order as FiatToken v2.2 (tUSD8): payee → time window → nonce → signature.
+    /// Each case breaks a later rule too (a wrong signer), so only the first broken rule may be reported.
+    function test_mockTusd8_checkOrder_matchesFiatToken() public {
+        bytes32 nonce = a.router.authorizationNonce(id);
+        uint256 vb = clock + 1 hours;
+        // wrong signer AND expired → expired
+        (uint8 v, bytes32 r, bytes32 s) = _payAuth(sellerKey, buyer, C.INVOICE_AMOUNT, nonce, vb);
+        _warp(vb);
+        vm.prank(address(a.router));
+        vm.expectRevert(MockTUSD8.AuthorizationExpired.selector);
+        token.receiveWithAuthorization(buyer, address(a.router), C.INVOICE_AMOUNT, 0, vb, nonce, v, r, s);
+        // wrong signer AND not yet valid → not yet valid
+        vm.prank(address(a.router));
+        vm.expectRevert(MockTUSD8.AuthorizationNotYetValid.selector);
+        token.receiveWithAuthorization(
+            buyer, address(a.router), C.INVOICE_AMOUNT, clock + 10, clock + 1 hours, nonce, v, r, s
+        );
+        // wrong signer AND nonce already used → used
+        uint256 vb2 = clock + 1 hours;
+        (v, r, s) = _payAuth(buyerKey, buyer, 1, nonce, vb2);
+        vm.prank(address(a.router));
+        token.receiveWithAuthorization(buyer, address(a.router), 1, 0, vb2, nonce, v, r, s);
+        (v, r, s) = _payAuth(sellerKey, buyer, 1, nonce, vb2);
+        vm.prank(address(a.router));
+        vm.expectRevert(MockTUSD8.AuthorizationUsedAlready.selector);
+        token.receiveWithAuthorization(buyer, address(a.router), 1, 0, vb2, nonce, v, r, s);
+        // caller isn't the payee → checked before everything
+        vm.prank(rogue);
+        vm.expectRevert(MockTUSD8.CallerMustBePayee.selector);
+        token.receiveWithAuthorization(buyer, address(a.router), 1, 0, vb2, nonce, v, r, s);
     }
 
     function test_authorizationCantBeRedirectedToAnotherInvoice() public {
@@ -128,7 +164,7 @@ contract RepaymentRouterTest is Base {
     }
 
     function test_latePayment_isRecordedLate() public {
-        vm.warp(a.registry.get(id).dueDate + 1);
+        _warp(a.registry.get(id).dueDate + 1);
         vm.prank(buyer);
         token.approve(address(a.router), C.INVOICE_AMOUNT);
         vm.expectEmit(true, true, false, true, address(a.router));
@@ -145,7 +181,7 @@ contract RepaymentRouterTest is Base {
     }
 
     function test_overdueThenRepaid() public {
-        vm.warp(a.registry.get(id).dueDate + a.facility.gracePeriod() + 1);
+        _warp(a.registry.get(id).dueDate + a.facility.gracePeriod() + 1);
         a.facility.markOverdue(id);
         _repay(id);
         assertEq(uint8(_state(id)), uint8(ReceivableRegistry.State.Repaid));

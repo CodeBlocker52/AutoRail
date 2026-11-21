@@ -36,7 +36,7 @@ contract AutorailVaultTest is Base {
     }
 
     function test_depositWithPermit_oneSignature() public {
-        uint256 deadline = block.timestamp + 1 hours;
+        uint256 deadline = clock + 1 hours;
         (uint8 v, bytes32 r, bytes32 s) = _permitSig(C.LENDER_DEPOSIT, deadline);
         vm.prank(lender);
         uint256 shares = a.vault.depositWithPermit(C.LENDER_DEPOSIT, lender, deadline, v, r, s);
@@ -46,7 +46,7 @@ contract AutorailVaultTest is Base {
     }
 
     function test_depositWithPermit_survivesFrontRunPermit() public {
-        uint256 deadline = block.timestamp + 1 hours;
+        uint256 deadline = clock + 1 hours;
         (uint8 v, bytes32 r, bytes32 s) = _permitSig(C.LENDER_DEPOSIT, deadline);
         // attacker submits the permit first; the deposit must still go through
         vm.prank(rogue);
@@ -57,7 +57,7 @@ contract AutorailVaultTest is Base {
     }
 
     function test_depositWithPermit_badPermitWithoutAllowanceReverts() public {
-        uint256 deadline = block.timestamp + 1 hours;
+        uint256 deadline = clock + 1 hours;
         (uint8 v, bytes32 r, bytes32 s) = _permitSig(C.LENDER_DEPOSIT, deadline);
         vm.prank(rogue); // rogue has no allowance; the permit is for lender, so it is swallowed and deposit fails
         vm.expectRevert();
