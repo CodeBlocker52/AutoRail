@@ -103,9 +103,16 @@ deploy-aevum: ## Aevum: deploy everything (ACCOUNT=<keystore> optional)
 	@$(ENV) $(SCRIPT) script/Deploy.s.sol --tc Deploy --rpc-url $(AEVUM_RPC) $(SIGNER)
 	node scripts/write-deployment.mjs 44005
 
+deploy-aevum-resume: ## Aevum: continue an interrupted deploy (same plan, no duplicates)
+	@$(ENV) $(SCRIPT) script/Deploy.s.sol --tc Deploy --rpc-url $(AEVUM_RPC) --resume $(SIGNER)
+	node scripts/write-deployment.mjs 44005
+
 register-agents-aevum: ## Aevum: register the 5 agents and assign roles
 	@$(ENV) $(SCRIPT) script/RegisterAgents.s.sol --rpc-url $(AEVUM_RPC) $(SIGNER)
 	node scripts/write-deployment.mjs 44005
+
+smoke-8004-aevum: ## Aevum: ERC-8004 runtime smoke test (register, setAgentURI, giveFeedback + reads)
+	@$(ENV) $(SCRIPT) script/Smoke8004.s.sol --rpc-url $(AEVUM_RPC)
 
 e2e-aevum: ## Aevum: run the 12-step end-to-end demo
 	@$(ENV) $(PNPM) exec tsx scripts/e2e/run.ts --network aevum $(E2E_FLAGS)

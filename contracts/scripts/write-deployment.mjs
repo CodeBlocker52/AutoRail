@@ -12,6 +12,49 @@ const explorer = "https://explorer-test.qday.info";
 
 const read = (p) => JSON.parse(readFileSync(p, "utf8"));
 const addresses = read(`deployments/${chainId}.addresses.json`);
+
+// The broadcast log is the source of truth for addresses. (`forge script --resume` re-executes the script and can
+// rewrite the addresses file with the *current* nonce while broadcasting the *original* plan.)
+// CREATE order is fixed by AutorailDeployer: bootstrap, identity impl, reputation impl, identity proxy,
+// reputation proxy, roles, vault, registry, JobWallet impl, factory, facility, router.
+{
+  const bc0 = `broadcast/Deploy.s.sol/${chainId}/run-latest.json`;
+  if (existsSync(bc0)) {
+    const creates = read(bc0).transactions.filter((t) => t.transactionType === "CREATE");
+    const order = [
+      "ERC8004Bootstrap",
+      "IdentityRegistryImpl",
+      "ReputationRegistryImpl",
+      "IdentityRegistry",
+      "ReputationRegistry",
+      "AutorailRoles",
+      "AutorailVault",
+      "ReceivableRegistry",
+      "JobWalletImplementation",
+      "JobWalletFactory",
+      "CreditFacility",
+      "RepaymentRouter",
+    ];
+    if (creates.length !== order.length) throw new Error(`expected ${order.length} CREATEs in ${bc0}, found ${creates.length}`);
+    const toChecksum = (a) => execSync(`cast to-check-sum-address ${a}`, { encoding: "utf8" }).trim();
+    let changed = 0;
+    order.forEach((name, i) => {
+      const got = toChecksum(creates[i].contractAddress);
+      if (addresses[name]?.toLowerCase() !== got.toLowerCase()) changed++;
+      addresses[name] = got;
+    });
+    if (changed) {
+      console.log(`addresses file corrected from the broadcast log (${changed} entries differed)`);
+      writeFileSync(`deployments/${chainId}.addresses.json`, JSON.stringify(addresses, null, 2) + "\n");
+    }
+    // every address must hold code
+    const rpc = chainId === "44005" ? "https://rpc-test.qday.info" : "http://127.0.0.1:8555";
+    for (const name of order) {
+      const size = execSync(`cast codesize ${addresses[name]} --rpc-url ${rpc}`, { encoding: "utf8" }).trim();
+      if (size === "0") throw new Error(`${name} at ${addresses[name]} has no code: not writing the deployment`);
+    }
+  }
+}
 const agentsPath = `deployments/${chainId}.agents.json`;
 const agents = existsSync(agentsPath) ? read(agentsPath) : {};
 

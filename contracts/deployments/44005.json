@@ -1,0 +1,328 @@
+{
+  "chainId": 44005,
+  "network": "QDay Aevum testnet",
+  "rpc": "https://rpc-test.qday.info",
+  "deployer": "0x23aF45aa18b83a1E07fe3b9DcB3eB5f6A84bD3AC",
+  "admin": "0x23aF45aa18b83a1E07fe3b9DcB3eB5f6A84bD3AC",
+  "tUSD8": "0x456569838f1d43009A91ebA4263147Afd7233483",
+  "deployBlock": 3753316,
+  "generatedAt": "2026-11-21T14:20:58.302Z",
+  "source": {
+    "commit": "957edabb16d5141723b90695c411987bd02858f3",
+    "dirtyWorkingTree": false,
+    "commitUrl": "https://github.com/CodeBlocker52/AutoRail/tree/957edabb16d5141723b90695c411987bd02858f3",
+    "solc": "0.8.24",
+    "evmVersion": "shanghai",
+    "optimizerRuns": 200,
+    "openzeppelin": {
+      "name": "v5.4.0",
+      "rev": "c64a1edb67b6e3f4a15cca8909c9482ad33a02b0"
+    },
+    "openzeppelinUpgradeable": {
+      "name": "v5.4.0",
+      "rev": "e725abddf1e01cf05ace496e950fc8e243cc7cab"
+    },
+    "erc8004Upstream": "erc-8004/erc-8004-contracts@b9e466c250744a7e06b13dff9d3c2844ed64f825"
+  },
+  "contracts": {
+    "IdentityRegistry": {
+      "address": "0x77D46b3fe9eD78c914280f22C0c57c330695B5E1",
+      "explorer": "https://explorer-test.qday.info/address/0x77D46b3fe9eD78c914280f22C0c57c330695B5E1",
+      "deployTx": "0x85867e51d58cf87ad247d027d0014e0982f3e4d30097981afca95d1e14b1db93",
+      "deployTxUrl": "https://explorer-test.qday.info/tx/0x85867e51d58cf87ad247d027d0014e0982f3e4d30097981afca95d1e14b1db93",
+      "block": 3753572,
+      "constructorArgs": [
+        "0x4490448d9F1EC9E656EaAdcBcC5A8D8DB06e6b2A",
+        "0xc4d66de800000000000000000000000023af45aa18b83a1e07fe3b9dcb3eb5f6a84bd3ac"
+      ]
+    },
+    "IdentityRegistryImpl": {
+      "address": "0x48394936dcf8783a75A695Fb76818F1a18Bbe716",
+      "explorer": "https://explorer-test.qday.info/address/0x48394936dcf8783a75A695Fb76818F1a18Bbe716",
+      "deployTx": "0x85256b2d38c9873285a914331c64543dfe925e0b0408141cc79d8c996f509cf7",
+      "deployTxUrl": "https://explorer-test.qday.info/tx/0x85256b2d38c9873285a914331c64543dfe925e0b0408141cc79d8c996f509cf7",
+      "block": 3753321,
+      "constructorArgs": []
+    },
+    "ReputationRegistry": {
+      "address": "0xD9d57E96dbaec2Eb6956f29F6161E66A3e46a361",
+      "explorer": "https://explorer-test.qday.info/address/0xD9d57E96dbaec2Eb6956f29F6161E66A3e46a361",
+      "deployTx": "0x8aee95ad65c09de903a28e28f82c1067c32bcc345204507e599b30baf01eaa1a",
+      "deployTxUrl": "https://explorer-test.qday.info/tx/0x8aee95ad65c09de903a28e28f82c1067c32bcc345204507e599b30baf01eaa1a",
+      "block": 3753578,
+      "constructorArgs": [
+        "0x4490448d9F1EC9E656EaAdcBcC5A8D8DB06e6b2A",
+        "0xc4d66de800000000000000000000000023af45aa18b83a1e07fe3b9dcb3eb5f6a84bd3ac"
+      ]
+    },
+    "ReputationRegistryImpl": {
+      "address": "0x95FDEFE46dAe522d744f90cF068Cf2Dd32fa6E2c",
+      "explorer": "https://explorer-test.qday.info/address/0x95FDEFE46dAe522d744f90cF068Cf2Dd32fa6E2c",
+      "deployTx": "0x420b5151264597dd0195f4353d21f93464fa8c13fdf5f0a42ae09e2ad5676bc1",
+      "deployTxUrl": "https://explorer-test.qday.info/tx/0x420b5151264597dd0195f4353d21f93464fa8c13fdf5f0a42ae09e2ad5676bc1",
+      "block": 3753568,
+      "constructorArgs": []
+    },
+    "ERC8004Bootstrap": {
+      "address": "0x4490448d9F1EC9E656EaAdcBcC5A8D8DB06e6b2A",
+      "explorer": "https://explorer-test.qday.info/address/0x4490448d9F1EC9E656EaAdcBcC5A8D8DB06e6b2A",
+      "deployTx": "0x8f60142af110faf8bf690217c33cf39a5e2d339925082dfd5826fe03e5e150ac",
+      "deployTxUrl": "https://explorer-test.qday.info/tx/0x8f60142af110faf8bf690217c33cf39a5e2d339925082dfd5826fe03e5e150ac",
+      "block": 3753316,
+      "constructorArgs": []
+    },
+    "AutorailRoles": {
+      "address": "0xb011da7b39C6cB038E1a01E0c114305551d76AA9",
+      "explorer": "https://explorer-test.qday.info/address/0xb011da7b39C6cB038E1a01E0c114305551d76AA9",
+      "deployTx": "0xc2b1b64faa03ec134f5fbc5be041d59b95836e715196c0feeacf6665a16cc401",
+      "deployTxUrl": "https://explorer-test.qday.info/tx/0xc2b1b64faa03ec134f5fbc5be041d59b95836e715196c0feeacf6665a16cc401",
+      "block": 3753584,
+      "constructorArgs": [
+        "0x77D46b3fe9eD78c914280f22C0c57c330695B5E1",
+        "0x23aF45aa18b83a1E07fe3b9DcB3eB5f6A84bD3AC"
+      ]
+    },
+    "AutorailVault": {
+      "address": "0xB8Faa056855Ad06ecE0e5C0812653D52FcBCa417",
+      "explorer": "https://explorer-test.qday.info/address/0xB8Faa056855Ad06ecE0e5C0812653D52FcBCa417",
+      "deployTx": "0x3e5e585112f1a0c1425a4e9c784b8f4f7ac44af0f9c6f7c3a2e4632d8c339965",
+      "deployTxUrl": "https://explorer-test.qday.info/tx/0x3e5e585112f1a0c1425a4e9c784b8f4f7ac44af0f9c6f7c3a2e4632d8c339965",
+      "block": 3753587,
+      "constructorArgs": [
+        "0x456569838f1d43009A91ebA4263147Afd7233483",
+        "0x23aF45aa18b83a1E07fe3b9DcB3eB5f6A84bD3AC"
+      ]
+    },
+    "ReceivableRegistry": {
+      "address": "0x7BB5AAEf016174ac24898938fd74F245c7f02F81",
+      "explorer": "https://explorer-test.qday.info/address/0x7BB5AAEf016174ac24898938fd74F245c7f02F81",
+      "deployTx": "0x3e4d7323073bc64279000c2638995cabcc20debe1155a3021d7a34cb3d9267e3",
+      "deployTxUrl": "https://explorer-test.qday.info/tx/0x3e4d7323073bc64279000c2638995cabcc20debe1155a3021d7a34cb3d9267e3",
+      "block": 3753590,
+      "constructorArgs": [
+        "0xb011da7b39C6cB038E1a01E0c114305551d76AA9",
+        "0x23aF45aa18b83a1E07fe3b9DcB3eB5f6A84bD3AC"
+      ]
+    },
+    "JobWalletImplementation": {
+      "address": "0x12efA521A148dbcBa234f9cD52E41b63A0D16959",
+      "explorer": "https://explorer-test.qday.info/address/0x12efA521A148dbcBa234f9cD52E41b63A0D16959",
+      "deployTx": "0xb17c130e4bd5c2a9ff11abfc84be367c3f90589842d1d60096a852cff24dbecf",
+      "deployTxUrl": "https://explorer-test.qday.info/tx/0xb17c130e4bd5c2a9ff11abfc84be367c3f90589842d1d60096a852cff24dbecf",
+      "block": 3753593,
+      "constructorArgs": []
+    },
+    "JobWalletFactory": {
+      "address": "0xc66DB22D9E843d9587868881182B9A1a8d389f78",
+      "explorer": "https://explorer-test.qday.info/address/0xc66DB22D9E843d9587868881182B9A1a8d389f78",
+      "deployTx": "0x059aaaab4a82fc5f25160c377c79edabbed990e016588c75d926c774cc3806e9",
+      "deployTxUrl": "https://explorer-test.qday.info/tx/0x059aaaab4a82fc5f25160c377c79edabbed990e016588c75d926c774cc3806e9",
+      "block": 3753596,
+      "constructorArgs": [
+        "0x12efA521A148dbcBa234f9cD52E41b63A0D16959",
+        "0x456569838f1d43009A91ebA4263147Afd7233483",
+        "0x23aF45aa18b83a1E07fe3b9DcB3eB5f6A84bD3AC"
+      ]
+    },
+    "CreditFacility": {
+      "address": "0x5a5a830d038351E7fa38dD6b6D116f5b5C267E42",
+      "explorer": "https://explorer-test.qday.info/address/0x5a5a830d038351E7fa38dD6b6D116f5b5C267E42",
+      "deployTx": "0xceff2bdf7aad32ca8815ba446eec59d8904960f17666deb7b2abacd67abced15",
+      "deployTxUrl": "https://explorer-test.qday.info/tx/0xceff2bdf7aad32ca8815ba446eec59d8904960f17666deb7b2abacd67abced15",
+      "block": 3753599,
+      "constructorArgs": [
+        "0x7BB5AAEf016174ac24898938fd74F245c7f02F81",
+        "0xB8Faa056855Ad06ecE0e5C0812653D52FcBCa417",
+        "0xc66DB22D9E843d9587868881182B9A1a8d389f78",
+        "0xb011da7b39C6cB038E1a01E0c114305551d76AA9",
+        "0xD9d57E96dbaec2Eb6956f29F6161E66A3e46a361",
+        "0x23aF45aa18b83a1E07fe3b9DcB3eB5f6A84bD3AC"
+      ]
+    },
+    "RepaymentRouter": {
+      "address": "0x9857f243990Df645bdf43F165188DFFE162D40C7",
+      "explorer": "https://explorer-test.qday.info/address/0x9857f243990Df645bdf43F165188DFFE162D40C7",
+      "deployTx": "0x7da2149a05e88a66b8203c63cc6b5d5c1047d286a7a3c37c721ed1811c116483",
+      "deployTxUrl": "https://explorer-test.qday.info/tx/0x7da2149a05e88a66b8203c63cc6b5d5c1047d286a7a3c37c721ed1811c116483",
+      "block": 3753602,
+      "constructorArgs": [
+        "0x456569838f1d43009A91ebA4263147Afd7233483",
+        "0x7BB5AAEf016174ac24898938fd74F245c7f02F81",
+        "0x5a5a830d038351E7fa38dD6b6D116f5b5C267E42",
+        "0xB8Faa056855Ad06ecE0e5C0812653D52FcBCa417",
+        "0xD9d57E96dbaec2Eb6956f29F6161E66A3e46a361",
+        "0x23aF45aa18b83a1E07fe3b9DcB3eB5f6A84bD3AC"
+      ]
+    }
+  },
+  "agents": {
+    "frontier-lab": 1,
+    "kestrel-gpu": 4,
+    "lumen-data": 0,
+    "payout": 3,
+    "underwriter": 2
+  },
+  "deployTxs": [
+    {
+      "hash": "0x8f60142af110faf8bf690217c33cf39a5e2d339925082dfd5826fe03e5e150ac",
+      "type": "CREATE",
+      "contract": "ERC8004Bootstrap",
+      "function": null,
+      "block": 3753316
+    },
+    {
+      "hash": "0x85256b2d38c9873285a914331c64543dfe925e0b0408141cc79d8c996f509cf7",
+      "type": "CREATE",
+      "contract": "IdentityRegistryUpgradeable",
+      "function": null,
+      "block": 3753321
+    },
+    {
+      "hash": "0x420b5151264597dd0195f4353d21f93464fa8c13fdf5f0a42ae09e2ad5676bc1",
+      "type": "CREATE",
+      "contract": "ReputationRegistryUpgradeable",
+      "function": null,
+      "block": 3753568
+    },
+    {
+      "hash": "0x85867e51d58cf87ad247d027d0014e0982f3e4d30097981afca95d1e14b1db93",
+      "type": "CREATE",
+      "contract": "AutorailERC1967Proxy",
+      "function": null,
+      "block": 3753572
+    },
+    {
+      "hash": "0x45b3c9fb5ce1966f8024bb773b61d2ed50577222e6fa7baeb35db519a9989c71",
+      "type": "CALL",
+      "contract": null,
+      "function": "upgradeToAndCall(address,bytes)",
+      "block": 3753575
+    },
+    {
+      "hash": "0x8aee95ad65c09de903a28e28f82c1067c32bcc345204507e599b30baf01eaa1a",
+      "type": "CREATE",
+      "contract": "AutorailERC1967Proxy",
+      "function": null,
+      "block": 3753578
+    },
+    {
+      "hash": "0xb37c6f08b0e160921d2f4415f8e0f9bbb4f4394b07a91fdd23202f7115fc58a2",
+      "type": "CALL",
+      "contract": null,
+      "function": "upgradeToAndCall(address,bytes)",
+      "block": 3753581
+    },
+    {
+      "hash": "0xc2b1b64faa03ec134f5fbc5be041d59b95836e715196c0feeacf6665a16cc401",
+      "type": "CREATE",
+      "contract": "AutorailRoles.erc8004",
+      "function": null,
+      "block": 3753584
+    },
+    {
+      "hash": "0x3e5e585112f1a0c1425a4e9c784b8f4f7ac44af0f9c6f7c3a2e4632d8c339965",
+      "type": "CREATE",
+      "contract": "AutorailVault.erc8004",
+      "function": null,
+      "block": 3753587
+    },
+    {
+      "hash": "0x3e4d7323073bc64279000c2638995cabcc20debe1155a3021d7a34cb3d9267e3",
+      "type": "CREATE",
+      "contract": "ReceivableRegistry.erc8004",
+      "function": null,
+      "block": 3753590
+    },
+    {
+      "hash": "0xb17c130e4bd5c2a9ff11abfc84be367c3f90589842d1d60096a852cff24dbecf",
+      "type": "CREATE",
+      "contract": "JobWallet.erc8004",
+      "function": null,
+      "block": 3753593
+    },
+    {
+      "hash": "0x059aaaab4a82fc5f25160c377c79edabbed990e016588c75d926c774cc3806e9",
+      "type": "CREATE",
+      "contract": "JobWalletFactory.erc8004",
+      "function": null,
+      "block": 3753596
+    },
+    {
+      "hash": "0xceff2bdf7aad32ca8815ba446eec59d8904960f17666deb7b2abacd67abced15",
+      "type": "CREATE",
+      "contract": "CreditFacility.erc8004",
+      "function": null,
+      "block": 3753599
+    },
+    {
+      "hash": "0x7da2149a05e88a66b8203c63cc6b5d5c1047d286a7a3c37c721ed1811c116483",
+      "type": "CREATE",
+      "contract": "RepaymentRouter.erc8004",
+      "function": null,
+      "block": 3753602
+    },
+    {
+      "hash": "0xfc62385171038c56750459aee7f5a51153b4079817f8e987205d6cdc2277e005",
+      "type": "CALL",
+      "contract": "AutorailVault.erc8004",
+      "function": "setFacility(address)",
+      "block": 3753605
+    },
+    {
+      "hash": "0x40d71d8ed16a429a8babe57178afd052553c7662f4256669f37f2078ee20622e",
+      "type": "CALL",
+      "contract": "AutorailVault.erc8004",
+      "function": "setRouter(address)",
+      "block": 3753608
+    },
+    {
+      "hash": "0x50b885ed8fdf682a6d862af4d10255379d28fecb19703d2a23e5990aad716e38",
+      "type": "CALL",
+      "contract": "ReceivableRegistry.erc8004",
+      "function": "setFacility(address)",
+      "block": 3753611
+    },
+    {
+      "hash": "0x0a5e79a2c7206b364cb6c91c8f2231e56c4d7bfd1129da17fae9640300ed7221",
+      "type": "CALL",
+      "contract": "ReceivableRegistry.erc8004",
+      "function": "setRepaymentRouter(address)",
+      "block": 3753614
+    },
+    {
+      "hash": "0x43acbe11f0ea9fecda6d456408f17f0870990ebe6a8d431ec628679b7509d924",
+      "type": "CALL",
+      "contract": "JobWalletFactory.erc8004",
+      "function": "setWiring(address,address)",
+      "block": 3753617
+    },
+    {
+      "hash": "0xea304d0be7c81ba248db2bfc12dd7233237820fda5083071c62e2a8319125372",
+      "type": "CALL",
+      "contract": "CreditFacility.erc8004",
+      "function": "setRouter(address)",
+      "block": 3753620
+    },
+    {
+      "hash": "0xfd033b626c297e7fc2cf90fae5b733674135735de32ef69a8b49a515793c84a5",
+      "type": "CALL",
+      "contract": "CreditFacility.erc8004",
+      "function": "setPeriods(uint64,uint64)",
+      "block": 3753623
+    },
+    {
+      "hash": "0x7b56b3a29963e8f74d92e079dbda049483a5667680cc064e1d7e9858caac9aa2",
+      "type": "CALL",
+      "contract": null,
+      "function": "approve(address,uint256)",
+      "block": 3753626
+    },
+    {
+      "hash": "0xcd69ec4b25619cb4f6c0d40bbc6dd92ba5b60b9e710fe7ec59fa98e4aab3267b",
+      "type": "CALL",
+      "contract": "AutorailVault.erc8004",
+      "function": "deposit(uint256,address)",
+      "block": 3753629
+    }
+  ]
+}

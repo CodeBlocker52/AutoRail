@@ -54,8 +54,38 @@ check("roles.identity", eq(await read(d.roles, abi.roles, "identity"), d.identit
 check("reputation.getIdentityRegistry", eq(await read(d.reputation, abi.reputation, "getIdentityRegistry"), d.identity));
 const implSlot = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
 const impl = async (p: Address) => getAddress(`0x${((await client.getStorageAt({ address: p, slot: implSlot })) ?? "0x").slice(-40)}`);
-check("IdentityRegistry proxy → official impl", eq(await impl(d.identity), raw.contracts.IdentityRegistryImpl.address));
-check("ReputationRegistry proxy → official impl", eq(await impl(d.reputation), raw.contracts.ReputationRegistryImpl.address));
+check("IdentityRegistry proxy → our impl", eq(await impl(d.identity), raw.contracts.IdentityRegistryImpl.address));
+check("ReputationRegistry proxy → our impl", eq(await impl(d.reputation), raw.contracts.ReputationRegistryImpl.address));
+
+// The implementations must be the OFFICIAL ERC-8004 code: on-chain runtime == compiled upstream source
+// (src/erc8004/*, byte-identical to erc-8004-contracts@b9e466c), with immutable slots (UUPS `__self`) masked.
+const { readFileSync } = await import("node:fs");
+async function matchesArtifact(address: Address, artifact: string) {
+  const art = JSON.parse(readFileSync(`out/${artifact}`, "utf8"));
+  const onchain = ((await client.getCode({ address })) ?? "0x").slice(2);
+  const compiled = (art.deployedBytecode.object as string).slice(2);
+  if (onchain.length !== compiled.length) return { ok: false, detail: `size ${onchain.length / 2} vs ${compiled.length / 2}` };
+  const mask = (hex: string) => {
+    const b = hex.split("");
+    for (const refs of Object.values(art.deployedBytecode.immutableReferences ?? {}) as { start: number; length: number }[][]) {
+      for (const r of refs) for (let i = r.start * 2; i < (r.start + r.length) * 2; i++) b[i] = "0";
+    }
+    return b.join("");
+  };
+  const ok = mask(onchain) === mask(compiled);
+  return { ok, detail: `runtime ${keccak256(`0x${mask(onchain)}`).slice(0, 18)}… ${ok ? "==" : "!="} compiled official source` };
+}
+const idImpl = await matchesArtifact(raw.contracts.IdentityRegistryImpl.address, "IdentityRegistryUpgradeable.sol/IdentityRegistryUpgradeable.json");
+check("IdentityRegistry impl is the official ERC-8004 code", idImpl.ok, idImpl.detail);
+const repImpl = await matchesArtifact(raw.contracts.ReputationRegistryImpl.address, "ReputationRegistryUpgradeable.sol/ReputationRegistryUpgradeable.json");
+check("ReputationRegistry impl is the official ERC-8004 code", repImpl.ok, repImpl.detail);
+const idVersion = await read<string>(d.identity, abi.identity, "getVersion");
+const repVersion = await read<string>(d.reputation, abi.reputation, "getVersion");
+check("ERC-8004 versions", idVersion === "2.0.0" && repVersion === "2.0.0", `identity ${idVersion}, reputation ${repVersion}`);
+const idOwner = await read<Address>(d.identity, abi.identity, "owner");
+const repOwner = await read<Address>(d.reputation, abi.reputation, "owner");
+check("IdentityRegistry proxy owner == admin", eq(idOwner, raw.admin), idOwner);
+check("ReputationRegistry proxy owner == admin", eq(repOwner, raw.admin), repOwner);
 check("facility periods (grace/default)", true, `${await read(d.facility, abi.facility, "gracePeriod")}s / ${await read(d.facility, abi.facility, "defaultPeriod")}s`);
 for (const name of ["AutorailRoles", "AutorailVault", "ReceivableRegistry", "JobWalletFactory", "CreditFacility", "RepaymentRouter"]) {
   const owner = await read<Address>(raw.contracts[name].address, abi.vault, "owner");
@@ -71,7 +101,7 @@ const expect: Record<string, [string, number]> = {
   "kestrel-gpu": ["MERCHANT_ADDRESS", 5],
 };
 for (const [slug, [envVar, role]] of Object.entries(expect)) {
-  const id = d.agents[slug];
+  const id = d.agents?.[slug];
   if (id === undefined) {
     check(`agent ${slug} registered`, false, "missing from deployments json");
     continue;
@@ -80,7 +110,8 @@ for (const [slug, [envVar, role]] of Object.entries(expect)) {
   check(`agent ${slug} #${id} owner`, eq(owner, addressOf(envVar)), owner);
   check(`agent ${slug} #${id} role`, (await read<number>(d.roles, abi.roles, "roleOf", [BigInt(id)])) === role);
 }
-check("buyer tier = 1", (await read<number>(d.roles, abi.roles, "buyerTier", [BigInt(d.agents["frontier-lab"])])) === 1);
+const buyerId = d.agents?.["frontier-lab"];
+check("buyer tier = 1", buyerId !== undefined && (await read<number>(d.roles, abi.roles, "buyerTier", [BigInt(buyerId)])) === 1);
 
 console.log("\n| Check | Result | Detail |\n|---|---|---|");
 for (const [name, ok, detail] of checks) console.log(`| ${name} | ${ok ? "✅" : "❌"} | ${detail} |`);

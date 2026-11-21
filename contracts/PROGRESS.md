@@ -7,9 +7,9 @@
 | 2 · Contracts | ✅ | `src/` (8 contracts + 2 libraries + vendored ERC-8004) |
 | 3 · Tests | ✅ | **115 tests + 6 invariants** (`forge test` prints "116 passed": it counts the invariant suite as one) **+ 3 fork tests** on the real tUSD8. Line coverage **97.8%** on `src/` (excluding vendored ERC-8004). `forge fmt --check` clean. `make build` Shanghai-safe |
 | 4a · Fork rehearsal | ✅ ×2 | Two full runs on fresh forks (chain 440050): fund → deploy → register → e2e 12/12. Run 2 included a **crash test**: killed mid-tx with mining paused; the rerun resumed the in-flight hash, with no duplicate deposit (lender nonce stayed 1) |
-| 4b · Deploy to Aevum | ⏸ **Blocked** | Deployer holds **2.00 tUSD8**; the budget needs **2.81** (OPEN_QUESTIONS Q1). Gas is fine (≈ 0.023 tQDAY measured on the fork) |
-| 5 · E2E on Aevum | ⏸ waits for 4b | `make e2e-aevum` |
-| 6 · Docs | ✅ partial | README, SECURITY, NOTICE, CHAIN, ACCOUNTS done. The address table and tx hashes get filled after 4b |
+| 4b · Deploy to Aevum | ✅ 2026-11-21 | Topped up to 3.00 tUSD8 (≥ 2.81 checked first). Commit `957edabb` (clean). Block 3,753,316. `make check-deployment` **55/55** |
+| 5 · E2E on Aevum | ✅ | 15/15 step records, 3 mined reverts decoded, `NewFeedback` 100 in the repayment tx, no `FeedbackFailed`. `deployments/demo-run-44005.json` |
+| 6 · Docs | ✅ | README address table, commit link, 11 key tx hashes |
 
 ## Decisions (small, recorded per the brief)
 
@@ -34,7 +34,40 @@
 - Deploy ≈ 0.0163 tQDAY, agent registration ≈ 0.0045, demo ≈ 0.0022 → **≈ 0.023 tQDAY of gas**. Funding moves 2.2 tQDAY to the role accounts (recyclable, not gas).
 - Final balances: vault 1.21 → **1.234** (+1.20 principal, +0.024 fee); seller **+0.476** (0.376 + 0.10 swept); annotators 0.40/0.40; merchant 0.30; JobWallet 0.
 
-## Next (needs the user)
-1. Send ≥ 0.85 tUSD8 to the deployer `0x23aF45aa18b83a1E07fe3b9DcB3eB5f6A84bD3AC`, **or** approve a scaled-down budget.
-2. `make fund-aevum && make deploy-aevum && make register-agents-aevum && make check-deployment && make e2e-aevum`.
-3. Fill the README address table and key tx hashes from `deployments/44005.json` and `deployments/demo-run-44005.json`.
+## Aevum deployment log (2026-11-21)
+
+**Pre-deploy checks**
+- Deployer tUSD8 = **3.000000** (≥ 2.81), tQDAY 15.0.
+- `git status` clean on `feat/contracts`; deploy commit `957edabb16d5141723b90695c411987bd02858f3`.
+- Fork rehearsals ran `anvil … --hardfork shanghai` (Makefile `fork` target). Proof: on that fork, init code `PUSH0 TLOAD STOP` fails with `EVM error NotActivated` and `PUSH0` alone succeeds; real Aevum returns `invalid opcode: TLOAD` for the same call.
+- e2e hardened before deploying: any `FeedbackFailed` (router or facility) aborts the run, and step 11/12 assert a `NewFeedback(seller, 100, "repaid_on_time")` inside the repayment tx. Rehearsal #3 on a fresh fork passed with these checks.
+
+**Incident: RPC outage mid-deploy (resolved, no duplicates).** After 2 of 23 txs, the RPC host became unreachable (timeouts, then DNS failures), and forge aborted waiting for a receipt. On-chain state: exactly 2 txs mined (deployer nonce 15). `forge script --resume` (`make deploy-aevum-resume`) broadcast the remaining 21 txs of the **same signed plan**; 23/23 succeeded.
+- Side effect: `--resume` re-executes the script, which rewrote `44005.addresses.json` with addresses for nonce 15 while the original plan (nonce 13) was broadcast. `RegisterAgents` caught it (a call to an address without code reverted).
+- Fix: `scripts/write-deployment.mjs` now derives every address from the broadcast log's CREATE txs (fixed order from `AutorailDeployer`) and refuses to write if any address lacks code.
+
+**Gas on Aevum (tQDAY):** probe 0.000124 · fund 0.000314 · deploy 0.016273 · agents 0.004541 · ERC-8004 smoke 0.000459 · e2e 0.002150 → **total 0.0239**. Funding moved 2.2 tQDAY to role accounts (recyclable). Recycle **not** run yet, as instructed.
+
+## ERC-8004 runtime smoke test on Aevum (the flagged TLOAD byte never runs)
+
+`script/Smoke8004.s.sol` registers a separate smoke agent **#5** (owner Annotator A, so the demo seller's reputation stays clean) and exercises every registry function Autorail uses. Each tx was then traced with the node's own `debug_traceTransaction` and its executed opcodes counted:
+
+| Function | Tx | Executed opcodes | PUSH0 | TLOAD/TSTORE/MCOPY/BLOB* |
+|---|---|---|---|---|
+| `register(string)` (smoke) | [`0xfd0a72aa…94d8`](https://explorer-test.qday.info/tx/0xfd0a72aa1d3cdc46b30b6114bc368f298bd20349057af6febe02d51f586894d8) | 1,235 | 36 | **0** |
+| `setAgentURI` (smoke) | [`0xa8729972…5919`](https://explorer-test.qday.info/tx/0xa8729972625c55f71b5f5f5a671e8ecb195c9d6c27991730d4f5c3cbfc8c5919) | 621 | 17 | **0** |
+| `giveFeedback` (merchant → #5) | [`0x0da028ee…3ae5`](https://explorer-test.qday.info/tx/0x0da028ee1f143338f29d2756a50b4a9cd7dfe62ee60e5eb092f3c167160b3ae5) | 1,829 | 59 | **0** |
+| `register()` + `setAgentURI` × 5 demo agents | `RegisterAgents` broadcast (10 txs) | 709 / ~1,250 each | 28 / 15 | **0** |
+| `giveFeedback` by the router inside the repayment | [`0x3473284f…ff01`](https://explorer-test.qday.info/tx/0x3473284f084d95f4f4a63a6062b90114f2d4583712df95eca7ddf3053c74ff01) | 10,780 | 115 | **0** |
+
+Live reads with `cast call` at block 3,754,091:
+- `ownerOf(5)` = `0xd052…2ff7` (Annotator A); `tokenURI(5)` = the smoke data URI; `ownerOf(0)` = the seller `0x2366…B98D`; `tokenURI(0)` = the base64 registration file.
+- `isAuthorizedOrOwner(merchant, 5)` = false.
+- `getSummary(5, [merchant], "smoke")` = **(1, 77, 0)**; `getSummary(0, [router], "credit")` = **(1, 100, 0)**.
+
+Conclusion: the official IdentityRegistry/ReputationRegistry run correctly on Aevum's Shanghai EVM. Across 14 traced live txs no Cancun-only opcode executed, confirming the kit checker's TLOAD hit (byte 14334) is unreachable data.
+
+## Next
+1. Push `feat/contracts` so the README commit link resolves.
+2. Wire the web app's onchain adapter to `deployments/44005.json` + `deployments/abi/` (bytes32 receivable ids, agent ids 0–4).
+3. `make recycle-aevum` when the demo funds are no longer needed (not run yet).
