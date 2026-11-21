@@ -122,7 +122,7 @@ export function toActivity(log: DecodedLog, ctx: ActivityContext): ActivityEvent
   switch (log.eventName) {
     case "Deposit":
       return ev("vault.deposit", `${ctx.label(A(a.owner))} deposited ${ctx.fmt(B(a.assets))} tUSD8`, {
-        detail: `${ctx.fmt(B(a.shares) / 1_000_000n)} vault shares (×10⁶ precision)`,
+        detail: `${ctx.fmt(B(a.shares) / 1_000_000n)} vault shares`,
         actor: ctx.label(A(a.owner)),
       });
     case "Withdraw":

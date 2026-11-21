@@ -89,6 +89,8 @@ const ALL_ERRORS = Object.values(abis)
 
 const lc = (a: string) => a.toLowerCase();
 const fmt6 = (v: bigint) => formatAmount(v);
+/** Vault shares have 12 decimals (_decimalsOffset() = 6 on top of tUSD8's 6). The UI shows them on the 6-decimal scale. */
+const SHARE_SCALE = 1_000_000n;
 const nowSec = () => BigInt(Math.floor(Date.now() / 1000));
 const bandOfFee = (feeBps: number): RiskBand => (feeBps <= 150 ? "A" : feeBps <= 200 ? "B" : feeBps <= 300 ? "C" : "D");
 
@@ -284,7 +286,7 @@ export class OnchainAutorailClient implements AutorailClient {
         totalAssets,
         idle,
         outstanding,
-        totalShares,
+        totalShares: totalShares / SHARE_SCALE,
         repaidPrincipal,
         feesEarned,
         defaults,
@@ -314,7 +316,7 @@ export class OnchainAutorailClient implements AutorailClient {
     }
     if (deposited < 0n) deposited = 0n;
     const earned = value > deposited ? value - deposited : 0n;
-    return { shares, value, deposited, earned, maxWithdraw: maxW < idle ? maxW : idle };
+    return { shares: shares / SHARE_SCALE, value, deposited, earned, maxWithdraw: maxW < idle ? maxW : idle };
   }
 
   // ─────────────────────────── agents ───────────────────────────
@@ -723,7 +725,6 @@ export class OnchainAutorailClient implements AutorailClient {
             id: b.id,
             type: "payment.blocked",
             title: `Blocked: ${fmt6(b.amount)} tUSD8 → ${b.payeeLabel}`,
-            detail: b.revertReason,
             status: "blocked",
             revertReason: b.revertReason,
             receivableId: rid,

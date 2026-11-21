@@ -38,7 +38,7 @@ async function main() {
   const act = await c.getActivity();
   check("activity has blocked + repaid", act.some((a) => a.type === "payment.blocked") && act.some((a) => a.type === "invoice.repaid"), act.length);
   const v = await c.getVaultStats();
-  check("vault stats", v.totalAssets > 0n && v.feesEarned === 24_000n, `${f(v.totalAssets)} fees ${f(v.feesEarned)} apy ${v.estApyBps}`);
+  check("vault stats (fees ≥ the recorded run's 0.024; live runs add more)", v.totalAssets > 0n && v.feesEarned >= 24_000n, `${f(v.totalAssets)} fees ${f(v.feesEarned)} apy ${v.estApyBps}`);
   const steps = await c.getDemoSteps();
   check("recorded run order", steps.map((s) => s.id).join(",") === "1,2,3,4,5,6,7a,7b,7c,8,9,10a,10b,11,12");
   check("recorded steps all done", steps.every((s) => s.status === "done"));

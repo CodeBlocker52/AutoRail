@@ -90,7 +90,31 @@ UX rules from the judging criteria: clear status for each transaction (signing �
 
 
 
-## 7. Run it
+## 7. Screenshots
+
+All from the real app. **Aevum** shots are against the live deployment on chain 44005, and their tx links open on [explorer-test.qday.info](https://explorer-test.qday.info). **Fork** shots use the same contracts deployed to a local anvil copy of Aevum (chain 440050) with the e2e test wallet, so they spend no real tUSD8 and show "local fork, no explorer". More are in [docs/screenshots/](docs/screenshots/).
+
+**Landing proof strip (Aevum):** the latest real `Repaid` event, read by `/api/proof`.
+
+![Landing page with the latest settlement proof strip](docs/screenshots/01-landing-proof-strip.png)
+
+**Agents · Run live (Aevum):** a fresh cycle on chain. The prompt-injected payee and the over-cap payment are real mined reverts with plain-English reasons.
+
+![Agents demo runner in Run live mode, showing the blocked prompt-injection and over-cap attempts](docs/screenshots/06-agents-run-live-blocked-aevum.png)
+
+**Audit (Aevum):** real events plus blocked attempts (decoded from the explorer's failed transactions), grouped by day.
+
+![Audit timeline with real transactions and blocked attempts](docs/screenshots/08-audit-real-transactions-aevum.png)
+
+**Lab · gasless pay (fork):** one EIP-3009 signature; the relayer submits; lenders are repaid first (principal 0.15 + fee 0.003), and the remainder goes to the vendor.
+
+![Lab pay modal with the repayment waterfall](docs/screenshots/05-lab-gasless-pay-waterfall-fork.png)
+
+**Lend · deposit with permit (fork):** one EIP-2612 signature and one transaction.
+
+![Lend page after a permit deposit](docs/screenshots/02-lend-deposit-permit-fork.png)
+
+## 8. Run it
 
 Contracts are live on QDay Aevum testnet (chain 44005): see [contracts/README.md](contracts/README.md) for addresses, tests and the recorded demo run.
 
