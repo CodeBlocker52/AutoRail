@@ -24,18 +24,37 @@ describe("agent ids start at 0", () => {
 
 describe("bigint amounts (6 decimals)", () => {
   it("formats and parses without floating point", () => {
-    expect(formatAmount(1_224_000n)).toBe("1.22");
-    expect(formatAmount(1_224_000n, { maxFrac: 6 })).toBe("1.224");
+    expect(formatAmount(1_224_000n)).toBe("1.224");
+    expect(formatAmount(1_224_000n, { maxFrac: 2 })).toBe("1.22");
     expect(formatAmount(0n)).toBe("0.00");
     expect(formatAmount(1_000_000_000_000n)).toBe("1,000,000.00");
     expect(formatAmount(-5_000n, { maxFrac: 3 })).toBe("−0.005");
-    expect(formatAmount(999_999n)).toBe("1.00");
+    expect(formatAmount(999_999n)).toBe("0.999999");
+    expect(formatAmount(999_999n, { maxFrac: 2 })).toBe("1.00");
     expect(tusd("0.08")).toBe(80_000n);
     expect(parseTokenInput("0.123456")).toBe(123_456n);
     expect(parseTokenInput("0.1234567")).toBeNull();
     expect(parseTokenInput("abc")).toBeNull();
     // larger than Number.MAX_SAFE_INTEGER survives
     expect(formatAmount(9_007_199_254_740_993_000_000n, { maxFrac: 6 })).toBe("9,007,199,254,740,993.00");
+  });
+});
+
+describe("small amounts show up to 6 decimals, never 0.00", () => {
+  it("formats fees and dust exactly, trimming trailing zeros to 2", () => {
+    expect(formatAmount(3_000n)).toBe("0.003"); // the 2% fee on a 0.15 advance
+    expect(formatAmount(1_500n)).toBe("0.0015");
+    expect(formatAmount(1n)).toBe("0.000001");
+    expect(formatAmount(75_000n)).toBe("0.075");
+    expect(formatAmount(1_200_000n)).toBe("1.20");
+    expect(formatAmount(100_000n)).toBe("0.10");
+    expect(formatAmount(0n)).toBe("0.00");
+    expect(formatAmount(-3_000n)).toBe("−0.003");
+    expect(formatAmount(3_000n, { sign: true })).toBe("+0.003");
+    for (const v of [1n, 9n, 10n, 999n, 3_000n, 45_123n]) expect(formatAmount(v)).not.toBe("0.00");
+  });
+  it("tQDAY (18 decimals) can still be capped explicitly", () => {
+    expect(formatAmount(298_765_432_100_000_000n, { decimals: 18, maxFrac: 3 })).toBe("0.299");
   });
 });
 
@@ -57,7 +76,7 @@ describe("state and role mapping", () => {
 describe("event mapping", () => {
   const ctx = makeCtx();
   it("SessionKeyRevoked is the EVENT (SessionRevoked is the error)", () => {
-    const row = toActivity(log("SessionKeyRevoked", { key: "0xf6D2c420C783F3e8c4cF26B50De564cB9dB25614" }), ctx)!;
+    const row = toActivity(log("SessionKeyRevoked", { key: "0xf6D2c420C783F3e8c4cF26B50De564cB9dB25614" }), ctx)!; // gitleaks:allow (public session-key address, not a secret)
     expect(row.type).toBe("session.revoked");
     expect(toActivity(log("SessionRevoked", {}), ctx)).toBeNull();
   });

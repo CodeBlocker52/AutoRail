@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { latestSettlement, type Settlement } from "@/lib/autorail/proof";
 import { formatAmount } from "@/lib/autorail/format";
-import { explorerTx } from "@/lib/chain/aevum";
+import { explorerTx, NO_EXPLORER_LABEL } from "@/lib/chain/aevum";
 
 const short = (h: string) => `${h.slice(0, 6)}…${h.slice(-5)}`;
 
@@ -37,14 +37,32 @@ export function ProofStrip() {
         </>
       )}
       <span aria-hidden>·</span>
-      <a href={explorerTx(event.txHash)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 normal-case tracking-normal text-brand underline-offset-2 hover:underline">
-        {short(event.txHash)}
-        <ArrowUpRight className="h-3 w-3" aria-hidden />
-        <span className="sr-only">(view on explorer)</span>
-      </a>
+      {!explorerTx(event.txHash) ? (
+        <span
+          title={`${event.txHash} (${NO_EXPLORER_LABEL})`}
+          className="normal-case tracking-normal"
+        >
+          {short(event.txHash)}
+        </span>
+      ) : (
+        <a
+          href={explorerTx(event.txHash)!}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-0.5 normal-case tracking-normal text-brand underline-offset-2 hover:underline"
+        >
+          {short(event.txHash)}
+          <ArrowUpRight className="h-3 w-3" aria-hidden />
+          <span className="sr-only">(view on explorer)</span>
+        </a>
+      )}
       <span aria-hidden>·</span>
       <span>block {event.block.toLocaleString("en-US")}</span>
-      {s.mock && <span className="rounded border border-line px-1.5 text-[10px] tracking-[0.1em]">demo data</span>}
+      {s.mock && (
+        <span className="rounded border border-line px-1.5 text-[10px] tracking-[0.1em]">
+          demo data
+        </span>
+      )}
     </p>
   );
 }

@@ -1,0 +1,3 @@
+# False positive: generic-api-key matched a public 40-hex address (the payout agent's session-key ADDRESS,
+# also listed in contracts/docs/ACCOUNTS.md), not a key. Private keys are 64 hex and never committed.
+66a90f6ed6bcfcbd173243c33e75cdf34e54fd7d:web/tests/mapping.test.ts:generic-api-key:60

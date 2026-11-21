@@ -189,14 +189,13 @@ export interface BlockedRecord extends PayoutResult {
 
 /** Blocked attempts made by our own agent routes (used where the explorer API is unavailable, e.g. a local fork). */
 export async function recordBlocked(jobWallet: Address, rec: BlockedRecord) {
-  const key = `blocked:${TARGET_CHAIN_ID}:${jobWallet.toLowerCase()}`;
-  const list = (await store.get<BlockedRecord[]>(key)) ?? [];
-  if (!list.some((x) => x.hash === rec.hash)) list.push(rec);
-  await store.set(key, list.slice(-200));
+  // one hash field per tx: concurrent agent runs can't overwrite each other's records
+  await store.hset(`blocked:${TARGET_CHAIN_ID}:${jobWallet.toLowerCase()}`, rec.hash ?? `${rec.timestamp}`, rec, 90 * 86_400);
 }
 
 export async function blockedFor(jobWallet: Address) {
-  return (await store.get<BlockedRecord[]>(`blocked:${TARGET_CHAIN_ID}:${jobWallet.toLowerCase()}`)) ?? [];
+  const list = await store.hvals<BlockedRecord>(`blocked:${TARGET_CHAIN_ID}:${jobWallet.toLowerCase()}`);
+  return list.sort((x, y) => (x.block ?? 0) - (y.block ?? 0));
 }
 
 // ─────────────────────────── x402-style merchant ───────────────────────────

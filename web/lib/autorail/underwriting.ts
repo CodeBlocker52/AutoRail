@@ -7,6 +7,7 @@
 import type { Address, Hex, PublicClient } from "viem";
 import { autorailRolesAbi, creditFacilityAbi, receivableRegistryAbi, reputationRegistryAbi } from "./generated/abis";
 import { BAND_BY_INDEX, toAgentId } from "./mapping";
+import { formatAmount } from "./format";
 import type { RiskBand } from "./types";
 
 export interface Offer {
@@ -50,7 +51,7 @@ export const OFFER_TYPES = {
   ],
 } as const;
 
-const fmt = (v: bigint) => (Number(v) / 1e6).toFixed(Number(v) % 10_000 === 0 ? 2 : 4).replace(/0+$/, "").replace(/\.$/, ".00");
+const fmt = (v: bigint) => formatAmount(v);
 
 /**
  * @param targetAdvanceBps advance the vendor asks for (capped by the band and the seller's limit)

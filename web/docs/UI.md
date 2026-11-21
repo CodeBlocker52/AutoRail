@@ -94,7 +94,27 @@ Addresses and ABIs are **generated**, never typed by hand: `scripts/sync-deploym
 | `/api/demo/live` | GET/POST | `{ action: "preflight" \| "start" \| "step", runId?, step? }` | "Run live" (see above). |
 | `/api/proof` | GET | – | Latest router `Repaid` (+ its ERC-8004 `NewFeedback`), for the landing proof strip. |
 
-All routes: idempotency keys where they send, retry with backoff on RPC transport errors only (never on reverts), a per-account nonce manager, structured JSON logs with redaction, no keys in logs or responses. Idempotency, rate limits and blocked records use Vercel KV / Upstash REST when `KV_REST_API_URL` is set, else memory.
+All routes: idempotency keys where they send, retry with backoff on RPC transport errors only (never on reverts), a per-account nonce manager, structured JSON logs with redaction, no keys in logs or responses.
+
+### Shared store (`lib/server/store.ts`)
+
+Idempotency keys, rate-limit counters, live-run state and blocked-attempt records live in one small KV interface with two backends:
+
+| Backend | When | Use |
+|---|---|---|
+| **Upstash Redis** (`@upstash/redis`, REST) | `KV_REST_API_URL` + `KV_REST_API_TOKEN` set (or `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`). Vercel's KV / Upstash marketplace integration sets the `KV_` pair for you. | **Required on Vercel**: serverless instances don't share memory, so without it two instances could each accept the same idempotency key or rate-limit bucket. |
+| In-memory | neither set | `pnpm dev`, a single `next start`, the fork e2e. Resets on restart. |
+
+| Key | Command | TTL | What |
+|---|---|---|---|
+| `relay:inflight:<chain>:<receivableId>` | `SET NX EX` | 120 s | one gasless repayment in flight per invoice |
+| `payout:<chain>:<idempotencyKey>:<line>` | `SET EX` | 24 h | payout line result (hash written **before** broadcast, so a retry rebroadcasts instead of paying twice) |
+| `x402:quote:<requestId>` / `x402:used:<txHash>` | `SET EX` / `SET NX EX` | 1 h / 30 d | merchant quotes; a payment tx unlocks one request only |
+| `live:<chain>:<runId>`, `live:lock:<runId>` | `SET EX` / `SET NX EX` | 7 d / 120 s | "Run live" state; one step at a time per run |
+| `rl:<bucket>:<window>` | `MULTI INCR + EXPIRE` | window | fixed-window rate limits (relay per IP and per payer, underwrite, live demo) |
+| `blocked:<chain>:<jobWallet>` | `HSET` field = tx hash | 90 d | blocked attempts made by our agent routes (fallback where Blockscout isn't available, e.g. the fork) |
+
+Failure policy: idempotency claims **fail closed** (a Redis error returns an error, nothing is sent); rate limits **fail open** with a `ratelimit.store_unavailable` warning, so a Redis outage can't lock users out. `tests/store.test.ts` runs the same suite against the memory store and against the real `@upstash/redis` client talking to a local fake of the Upstash REST API.
 
 ### Environment
 

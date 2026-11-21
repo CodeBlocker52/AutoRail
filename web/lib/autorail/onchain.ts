@@ -21,6 +21,7 @@ import {
   type WalletClient,
 } from "viem";
 import type { AutorailClient } from "./client";
+import { formatAmount } from "./format";
 import { AutorailError, decodeRevertData, ERROR_MESSAGES, type AutorailErrorCode } from "./errors";
 import { blockscoutLogs, blockscoutTxs } from "./blockscout";
 import { LogIndexer } from "./indexer";
@@ -87,10 +88,7 @@ const ALL_ERRORS = Object.values(abis)
   .filter((x) => (x as { type: string }).type === "error") as unknown as Abi;
 
 const lc = (a: string) => a.toLowerCase();
-const fmt6 = (v: bigint) => {
-  const s = (Number(v) / 1e6).toFixed(6).replace(/0+$/, "");
-  return s.endsWith(".") ? `${s}00` : s.split(".")[1]?.length === 1 ? `${s}0` : s;
-};
+const fmt6 = (v: bigint) => formatAmount(v);
 const nowSec = () => BigInt(Math.floor(Date.now() / 1000));
 const bandOfFee = (feeBps: number): RiskBand => (feeBps <= 150 ? "A" : feeBps <= 200 ? "B" : feeBps <= 300 ? "C" : "D");
 
@@ -134,7 +132,7 @@ const STEP_META: Record<string, { actor: Role; proof: string; expect?: AutorailE
 };
 
 const L = DEMO_CONFIG.live;
-const t6 = (v: number) => (v / 1e6).toFixed(v % 10_000 === 0 ? 2 : 3);
+const t6 = (v: number) => formatAmount(BigInt(v));
 /** Live-run titles (amounts from the tiny `live` profile, not the recorded run). */
 const LIVE_TITLES: Record<string, string> = {
   "1": `Lender deposits ${t6(L.lenderDeposit)} tUSD8 into the vault (EIP-2612 permit)`,
