@@ -8,7 +8,9 @@ import type {
   Amount,
   Balances,
   CreateReceivableInput,
+  DemoMode,
   DemoPreset,
+  LivePreflight,
   DemoStep,
   GrantSessionInput,
   JobWallet,
@@ -18,6 +20,7 @@ import type {
   Receivable,
   RegisterAgentInput,
   Repayment,
+  ReceivableId,
   Role,
   Session,
   TypedDataPayload,
@@ -46,35 +49,40 @@ export interface AutorailClient {
   getLenderPosition(account: Address): Promise<LenderPosition>;
   getAgents(): Promise<Agent[]>;
   getReceivables(): Promise<Receivable[]>;
-  getReceivable(id: number): Promise<Receivable | null>;
-  getAdvanceOffer(receivableId: number): Promise<AdvanceOffer | null>;
-  getJobWallet(receivableId: number): Promise<JobWallet | null>;
+  getReceivable(id: ReceivableId): Promise<Receivable | null>;
+  getAdvanceOffer(receivableId: ReceivableId): Promise<AdvanceOffer | null>;
+  getJobWallet(receivableId: ReceivableId): Promise<JobWallet | null>;
   getSessions(jobWallet: Address): Promise<Session[]>;
   getPayments(jobWallet: Address): Promise<Payment[]>;
-  getRepayment(receivableId: number): Promise<Repayment | null>;
+  getRepayment(receivableId: ReceivableId): Promise<Repayment | null>;
   getActivity(filter?: ActivityFilter): Promise<ActivityEvent[]>;
   /** EIP-712 typed data the buyer signs to confirm an invoice. */
-  getConfirmationTypedData(receivableId: number): Promise<TypedDataPayload>;
+  getConfirmationTypedData(receivableId: ReceivableId): Promise<TypedDataPayload>;
   /** EIP-3009 ReceiveWithAuthorization typed data the buyer signs to pay. */
-  getPaymentTypedData(receivableId: number): Promise<TypedDataPayload>;
+  getPaymentTypedData(receivableId: ReceivableId): Promise<TypedDataPayload>;
   getDemoSteps(): Promise<DemoStep[]>;
 
   // ── Writes (each reports stages via opts.onStage) ─────
   depositWithPermit(amount: Amount, opts?: WriteOptions): Promise<WriteResult>;
   withdraw(amount: Amount, opts?: WriteOptions): Promise<WriteResult>;
   registerAgent(input: RegisterAgentInput, opts?: WriteOptions): Promise<WriteResult & { agentId: number }>;
-  createReceivable(input: CreateReceivableInput, opts?: WriteOptions): Promise<WriteResult & { receivableId: number }>;
-  confirmReceivable(receivableId: number, opts?: WriteOptions): Promise<WriteResult>;
+  createReceivable(input: CreateReceivableInput, opts?: WriteOptions): Promise<WriteResult & { receivableId: ReceivableId }>;
+  confirmReceivable(receivableId: ReceivableId, opts?: WriteOptions): Promise<WriteResult>;
   /** Underwriter-signed funding: vault → new JobWallet. */
-  fundAdvance(receivableId: number, opts?: WriteOptions): Promise<WriteResult & { jobWallet: Address }>;
+  fundAdvance(receivableId: ReceivableId, opts?: WriteOptions): Promise<WriteResult & { jobWallet: Address }>;
   grantSession(jobWallet: Address, input: GrantSessionInput, opts?: WriteOptions): Promise<WriteResult>;
   revokeSession(jobWallet: Address, key: Address, opts?: WriteOptions): Promise<WriteResult>;
   pay(jobWallet: Address, input: PayInput, opts?: WriteOptions): Promise<WriteResult>;
   /** Buyer signs EIP-3009; relayer submits; router runs the lenders-first waterfall. */
-  payInvoice(receivableId: number, opts?: WriteOptions): Promise<WriteResult & { repayment: Repayment }>;
-  markOverdue(receivableId: number, opts?: WriteOptions): Promise<WriteResult>;
+  payInvoice(receivableId: ReceivableId, opts?: WriteOptions): Promise<WriteResult & { repayment: Repayment }>;
+  markOverdue(receivableId: ReceivableId, opts?: WriteOptions): Promise<WriteResult>;
 
   // ── Demo runner ───────────────────────────────────────
-  runDemoStep(stepId: number, opts?: WriteOptions): Promise<DemoStep>;
+  runDemoStep(stepId: string, opts?: WriteOptions): Promise<DemoStep>;
+  /** Mock: always "mock". Onchain: "recorded" (replay, default) or "live". */
+  getDemoMode(): DemoMode;
+  setDemoMode(mode: DemoMode): Promise<void>;
+  /** Live-run balance/liquidity checks (onchain only). */
+  demoPreflight?(): Promise<LivePreflight>;
   resetDemo(preset: DemoPreset): Promise<void>;
 }

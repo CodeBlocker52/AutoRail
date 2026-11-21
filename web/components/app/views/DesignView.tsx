@@ -57,7 +57,7 @@ const H = `0x${"5e".repeat(32)}` as `0x${string}`;
 const now0 = Math.floor(Date.now() / 1000);
 
 const wallet: JobWallet = {
-  address: A(0x4b), receivableId: 1, owner: A(0x3f), funded: tusd("3"), balance: tusd("0.2"), spent: tusd("2.8"), swept: 0n, closed: false,
+  address: A(0x4b), receivableId: "1", owner: A(0x3f), funded: tusd("3"), balance: tusd("0.2"), spent: tusd("2.8"), swept: 0n, closed: false,
   payees: [
     { address: A(0xa1), label: "Annotator A", kind: "annotator" },
     { address: A(0xb2), label: "Annotator B", kind: "annotator" },

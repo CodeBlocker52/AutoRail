@@ -19,23 +19,25 @@ export function PresenterMode({ d, onClose }: { d: DemoRunnerState; onClose: () 
   const reduce = useReducedMotion();
   const root = useRef<HTMLDivElement>(null);
   const { data: vault } = useVault();
-  const [view, setView] = useState<number>(() => d.next?.id ?? 12);
+  // `view` is an index into d.steps (step ids may be "7a", "10b" for onchain runs)
+  const nextIdx = d.next ? d.steps.findIndex((s) => s.id === d.next!.id) : -1;
+  const [view, setView] = useState<number>(() => (nextIdx >= 0 ? nextIdx : Math.max(0, d.steps.length - 1)));
   const busy = !!d.active || d.runningAll;
-  const step = d.steps.find((s) => s.id === view);
-  const running = d.active?.id === view;
+  const step = d.steps[view];
+  const running = !!step && d.active?.id === step.id;
 
   const runNext = useCallback(() => {
     if (busy || !d.next || !d.supported) return;
-    setView(d.next.id);
+    setView(d.steps.findIndex((s) => s.id === d.next!.id));
     void d.runStep(d.next.id);
   }, [busy, d]);
 
-  const back = useCallback(() => setView((v) => Math.max(1, v - 1)), []);
-  const forward = useCallback(() => setView((v) => Math.min(12, v + 1)), []);
+  const back = useCallback(() => setView((v) => Math.max(0, v - 1)), []);
+  const forward = useCallback(() => setView((v) => Math.min(d.steps.length - 1, v + 1)), [d.steps.length]);
   const reset = useCallback(async () => {
     if (busy) return;
     await d.reset("fresh");
-    setView(1);
+    setView(0);
   }, [busy, d]);
 
   useEffect(() => {
@@ -48,7 +50,7 @@ export function PresenterMode({ d, onClose }: { d: DemoRunnerState; onClose: () 
       else if (e.key === "ArrowRight") {
         e.preventDefault();
         // → runs the next step; if you went back to review, it first catches up.
-        if (d.next && view < d.next.id) forward();
+        if (nextIdx >= 0 && view < nextIdx) forward();
         else runNext();
       } else if (e.key === "ArrowLeft") {
         e.preventDefault();
@@ -64,7 +66,7 @@ export function PresenterMode({ d, onClose }: { d: DemoRunnerState; onClose: () 
       document.body.style.overflow = prev;
       if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
     };
-  }, [onClose, runNext, back, forward, reset, d.next, view]);
+  }, [onClose, runNext, back, forward, reset, nextIdx, view]);
 
   if (typeof document === "undefined" || !step) return null;
   const blocked = step.status === "done" && step.expectsRevert;
@@ -94,7 +96,7 @@ export function PresenterMode({ d, onClose }: { d: DemoRunnerState; onClose: () 
       <main className="relative mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center px-6 pb-10 sm:px-10">
         <div className="flex flex-wrap items-center gap-3">
           <span className="font-mono text-[15px] uppercase tracking-[0.2em] text-brand">
-            Step {String(step.id).padStart(2, "0")} <span className="text-muted">/ 12</span>
+            Step {/^\d+$/.test(step.id) ? step.id.padStart(2, "0") : step.id} <span className="text-muted">· {view + 1} / {d.steps.length}</span>
           </span>
           <span className="rounded-full border border-line bg-surface px-3 py-1 font-mono text-[12px] uppercase tracking-[0.12em] text-text">{ACTOR[step.actor]}</span>
           {step.expectsRevert && (
@@ -193,16 +195,16 @@ export function PresenterMode({ d, onClose }: { d: DemoRunnerState; onClose: () 
       <footer className="relative border-t border-line bg-surface/80 px-6 py-4 backdrop-blur sm:px-10">
         <div className="mx-auto flex max-w-5xl flex-col gap-4 sm:flex-row sm:items-center">
           <ol className="flex flex-1 items-center gap-1.5" aria-label="Steps">
-            {d.steps.map((s) => (
+            {d.steps.map((s, i) => (
               <li key={s.id} className="flex-1">
                 <button
-                  onClick={() => setView(s.id)}
+                  onClick={() => setView(i)}
                   aria-label={`Step ${s.id}: ${s.title} (${s.status})`}
-                  aria-current={s.id === view ? "step" : undefined}
+                  aria-current={i === view ? "step" : undefined}
                   className={cn(
                     "block h-2 w-full rounded-full transition-colors",
                     s.status === "done" ? (s.expectsRevert ? "bg-danger" : "bg-brand") : s.status === "failed" ? "bg-danger/50" : "bg-line",
-                    s.id === view && "ring-2 ring-ink ring-offset-2 ring-offset-surface",
+                    i === view && "ring-2 ring-ink ring-offset-2 ring-offset-surface",
                   )}
                 />
               </li>
@@ -212,8 +214,8 @@ export function PresenterMode({ d, onClose }: { d: DemoRunnerState; onClose: () 
             <button onClick={back} className="inline-flex h-10 items-center gap-1.5 rounded-btn border border-line bg-surface px-3 text-[13px] hover:border-brand-line" aria-label="Previous step (←)">
               <ArrowLeft className="h-4 w-4" aria-hidden /> <Kbd>←</Kbd>
             </button>
-            <button onClick={() => (d.next && view < d.next.id ? forward() : runNext())} disabled={busy || !d.next} className="inline-flex h-10 items-center gap-1.5 rounded-btn bg-brand px-4 text-[13.5px] font-medium text-white hover:bg-brand-hover disabled:opacity-50" aria-label="Run next step (→)">
-              {d.next && view < d.next.id ? "Next" : "Run step"} <ArrowRight className="h-4 w-4" aria-hidden />
+            <button onClick={() => (nextIdx >= 0 && view < nextIdx ? forward() : runNext())} disabled={busy || !d.next} className="inline-flex h-10 items-center gap-1.5 rounded-btn bg-brand px-4 text-[13.5px] font-medium text-white hover:bg-brand-hover disabled:opacity-50" aria-label="Run next step (→)">
+              {nextIdx >= 0 && view < nextIdx ? "Next" : "Run step"} <ArrowRight className="h-4 w-4" aria-hidden />
             </button>
             <button onClick={() => void reset()} disabled={busy} className="inline-flex h-10 items-center gap-1.5 rounded-btn border border-line bg-surface px-3 text-[13px] hover:border-brand-line disabled:opacity-50" aria-label="Reset demo (R)">
               <RotateCcw className="h-4 w-4" aria-hidden /> <Kbd>R</Kbd>

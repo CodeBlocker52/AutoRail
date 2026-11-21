@@ -26,6 +26,7 @@ import type {
   Payee,
   Payment,
   Receivable,
+  ReceivableId,
   RegisterAgentInput,
   Repayment,
   Role,
@@ -35,6 +36,7 @@ import type {
   VaultStats,
   WriteOptions,
   WriteResult,
+  DemoMode,
   DemoPreset,
 } from "./types";
 
@@ -85,7 +87,6 @@ interface State {
   txCount: number;
   block: number;
   clock?: number; // virtual clock while building presets
-  nextAgentId: number;
   nextReceivableId: number;
   agents: Agent[];
   receivables: Receivable[];
@@ -97,8 +98,8 @@ interface State {
   vault: { idle: Amount; outstanding: Amount; shares: Amount; repaidPrincipal: Amount; feesEarned: Amount; defaults: Amount; lastApyBps: number; history: VaultPoint[] };
   balances: Record<string, Balances>;
   positions: Record<string, { shares: Amount; deposited: Amount }>;
-  demo: Record<number, DemoState>;
-  demoReceivableId?: number;
+  demo: Record<string, DemoState>;
+  demoReceivableId?: string;
 }
 
 interface TxCtx {
@@ -114,7 +115,6 @@ function emptyState(epoch: number): State {
     epoch,
     txCount: 0,
     block: START_BLOCK,
-    nextAgentId: 12,
     nextReceivableId: 1,
     agents: [],
     receivables: [],
@@ -364,7 +364,7 @@ export class MockAutorailClient implements AutorailClient {
     if (apy) this.state.vault.lastApyBps = apy;
     this.state.vault.history.push({ timestamp: t, totalAssets: total, utilizationBps: util });
   }
-  demoId(): number {
+  demoId(): ReceivableId {
     const id = this.state.demoReceivableId;
     if (!id) this.fail("InvalidState", "Run step 3 first.");
     return id;
@@ -419,12 +419,12 @@ export class MockAutorailClient implements AutorailClient {
     await this.whenReady();
     return structuredClone([...this.state.receivables].reverse());
   }
-  async getReceivable(id: number) {
+  async getReceivable(id: ReceivableId) {
     await this.whenReady();
     const r = this.state.receivables.find((x) => x.id === id);
     return r ? structuredClone(r) : null;
   }
-  async getAdvanceOffer(id: number): Promise<AdvanceOffer | null> {
+  async getAdvanceOffer(id: ReceivableId): Promise<AdvanceOffer | null> {
     await this.whenReady();
     const r = this.state.receivables.find((x) => x.id === id);
     if (!r || r.state === "Created") return null;
@@ -457,10 +457,10 @@ export class MockAutorailClient implements AutorailClient {
       buyerTier: tier,
       termDays,
       explanation,
-      underwriterAgentId: 3,
+      underwriterAgentId: 2,
     };
   }
-  async getJobWallet(receivableId: number) {
+  async getJobWallet(receivableId: ReceivableId) {
     await this.whenReady();
     const jw = this.state.wallets.find((w) => w.receivableId === receivableId);
     return jw ? structuredClone(jw) : null;
@@ -473,7 +473,7 @@ export class MockAutorailClient implements AutorailClient {
     await this.whenReady();
     return structuredClone(this.state.payments.filter((p) => same(p.jobWallet, jobWallet)).reverse());
   }
-  async getRepayment(receivableId: number) {
+  async getRepayment(receivableId: ReceivableId) {
     await this.whenReady();
     const r = this.state.repayments.find((x) => x.receivableId === receivableId);
     return r ? structuredClone(r) : null;
@@ -487,7 +487,7 @@ export class MockAutorailClient implements AutorailClient {
     if (filter.limit) ev = ev.slice(0, filter.limit);
     return structuredClone(ev);
   }
-  async getConfirmationTypedData(id: number): Promise<TypedDataPayload> {
+  async getConfirmationTypedData(id: ReceivableId): Promise<TypedDataPayload> {
     await this.whenReady();
     const r = this.state.receivables.find((x) => x.id === id);
     if (!r) this.fail("InvalidState", "Unknown invoice.");
@@ -508,7 +508,7 @@ export class MockAutorailClient implements AutorailClient {
       message: { receivableId: BigInt(r.id), invoiceHash: r.invoiceHash, seller: r.seller, amount: r.amount, dueDate: BigInt(r.dueDate), payee: A.router, nonce: 0n },
     };
   }
-  async getPaymentTypedData(id: number): Promise<TypedDataPayload> {
+  async getPaymentTypedData(id: ReceivableId): Promise<TypedDataPayload> {
     await this.whenReady();
     const r = this.state.receivables.find((x) => x.id === id);
     if (!r) this.fail("InvalidState", "Unknown invoice.");
@@ -532,7 +532,7 @@ export class MockAutorailClient implements AutorailClient {
     await this.whenReady();
     return DEMO_STEPS.map((d) => {
       const s = this.state.demo[d.id] ?? { status: "pending" as const, txHashes: [] };
-      return { id: d.id, title: d.title, description: d.description, actor: d.actor, amount: d.amount, proof: d.proof, expectsRevert: !!d.expectsRevert, ...structuredClone(s) };
+      return { id: String(d.id), title: d.title, description: d.description, actor: d.actor, amount: d.amount, proof: d.proof, expectsRevert: !!d.expectsRevert, ...structuredClone(s) };
     });
   }
 
@@ -583,7 +583,9 @@ export class MockAutorailClient implements AutorailClient {
       if (!input.name.trim()) this.fail("Unknown", "Give the agent a name.");
       const owner = A.vendor;
       if (input.role === "seller" && this.sellerAgentOf(owner)) this.fail("InvalidState", "This vendor already has a seller agent.");
-      const agentId = this.state.nextAgentId++;
+      // ERC-8004 hands out ids in order from 0; the mock takes the lowest free id (seller → 0).
+      let agentId = 0;
+      while (this.state.agents.some((a) => a.agentId === agentId)) agentId++;
       this.state.agents.push({
         agentId,
         name: input.name.trim(),
@@ -613,7 +615,7 @@ export class MockAutorailClient implements AutorailClient {
       if (input.amount <= 0n) this.fail("Unknown", "Enter an invoice amount.");
       if (input.dueDate <= ctx.t) this.fail("Unknown", "The due date must be in the future.");
       const buyer = this.state.agents.find((a) => a.role === "buyer" && same(a.address, input.buyer));
-      const id = this.state.nextReceivableId++;
+      const id = String(this.state.nextReceivableId++);
       this.state.receivables.push({
         id,
         invoiceNumber: input.invoiceNumber.trim(),
@@ -636,7 +638,7 @@ export class MockAutorailClient implements AutorailClient {
     });
   }
 
-  confirmReceivable(id: number, opts?: WriteOptions) {
+  confirmReceivable(id: ReceivableId, opts?: WriteOptions) {
     return this.tx(opts, (ctx) => {
       const r = this.state.receivables.find((x) => x.id === id);
       if (!r) this.fail("InvalidState", "Unknown invoice.");
@@ -649,7 +651,7 @@ export class MockAutorailClient implements AutorailClient {
     }, 900);
   }
 
-  fundAdvance(id: number, opts?: WriteOptions) {
+  fundAdvance(id: ReceivableId, opts?: WriteOptions) {
     return this.tx(opts, (ctx) => {
       const r = this.state.receivables.find((x) => x.id === id);
       if (!r) this.fail("InvalidState", "Unknown invoice.");
@@ -753,7 +755,7 @@ export class MockAutorailClient implements AutorailClient {
       const block: (code: AutorailErrorCode) => never = (code) => {
         this.state.payments.push({ id: ctx.hash, jobWallet, sessionKey: input.sessionKey, payee: input.payee, payeeLabel: label, amount: input.amount, memo: input.memo, status: "blocked", revertReason: ERROR_MESSAGES[code], txHash: ctx.hash, block: ctx.block, timestamp: ctx.t });
         this.touchAgent((a) => a.role === "payout", `Blocked: ${code}`, ctx.t, "blocked");
-        this.log(ctx, { type: "payment.blocked", title: `Blocked: ${formatAmount(input.amount)} tUSD8 → ${label}`, detail: input.memo, status: "blocked", revertReason: `${code} · ${ERROR_MESSAGES[code]}`, receivableId: r.id, agentId: 11, actor: "Payout agent" });
+        this.log(ctx, { type: "payment.blocked", title: `Blocked: ${formatAmount(input.amount)} tUSD8 → ${label}`, detail: input.memo, status: "blocked", revertReason: `${code} · ${ERROR_MESSAGES[code]}`, receivableId: r.id, agentId: 3, actor: "Payout agent" });
         throw new AutorailError(code, undefined, ctx.hash);
       };
       if (jw.closed) block("InvalidState");
@@ -778,12 +780,12 @@ export class MockAutorailClient implements AutorailClient {
       this.state.payments.push({ id: ctx.hash, jobWallet, sessionKey: input.sessionKey, payee: input.payee, payeeLabel: label, amount: input.amount, memo: input.memo, status: "paid", txHash: ctx.hash, block: ctx.block, timestamp: ctx.t });
       this.touchAgent((a) => a.role === "payout", `Paid ${formatAmount(input.amount)} → ${label}`, ctx.t);
       if (same(input.payee, A.merchant)) this.touchAgent((a) => a.role === "merchant", `HTTP 402 settled · ${formatAmount(input.amount)} tUSD8`, ctx.t);
-      this.log(ctx, { type: "payment.sent", title: `Paid ${formatAmount(input.amount)} tUSD8 → ${label}`, detail: input.memo, status: "ok", receivableId: r.id, agentId: input.sessionKey ? 11 : r.sellerAgentId, actor: input.sessionKey ? "Payout agent" : r.sellerName });
+      this.log(ctx, { type: "payment.sent", title: `Paid ${formatAmount(input.amount)} tUSD8 → ${label}`, detail: input.memo, status: "ok", receivableId: r.id, agentId: input.sessionKey ? 3 : r.sellerAgentId, actor: input.sessionKey ? "Payout agent" : r.sellerName });
       return {};
     }, input.sessionKey ? 300 : 650);
   }
 
-  payInvoice(id: number, opts?: WriteOptions) {
+  payInvoice(id: ReceivableId, opts?: WriteOptions) {
     return this.tx(opts, (ctx) => {
       const r = this.state.receivables.find((x) => x.id === id);
       if (!r) this.fail("InvalidState", "Unknown invoice.");
@@ -842,7 +844,7 @@ export class MockAutorailClient implements AutorailClient {
     }, 1100);
   }
 
-  markOverdue(id: number, opts?: WriteOptions) {
+  markOverdue(id: ReceivableId, opts?: WriteOptions) {
     return this.tx(opts, (ctx) => {
       const r = this.state.receivables.find((x) => x.id === id);
       if (!r || r.state !== "Funded") this.fail("InvalidState");
@@ -854,8 +856,9 @@ export class MockAutorailClient implements AutorailClient {
   }
 
   // ── demo runner ──
-  async runDemoStep(stepId: number, opts?: WriteOptions): Promise<DemoStep> {
+  async runDemoStep(stepKey: string, opts?: WriteOptions): Promise<DemoStep> {
     await this.whenReady();
+    const stepId = Number(stepKey);
     const def = DEMO_STEPS.find((d) => d.id === stepId);
     if (!def) throw new AutorailError("InvalidState", "Unknown step.");
     const prevPending = DEMO_STEPS.find((d) => d.id < stepId && this.state.demo[d.id]?.status !== "done");
@@ -882,7 +885,14 @@ export class MockAutorailClient implements AutorailClient {
     }
     this.pendingHashes = [];
     this.emit();
-    return (await this.getDemoSteps()).find((s) => s.id === stepId)!;
+    return (await this.getDemoSteps()).find((s) => s.id === stepKey)!;
+  }
+
+  getDemoMode(): DemoMode {
+    return "mock";
+  }
+  async setDemoMode(_mode: DemoMode) {
+    void _mode;
   }
 
   async resetDemo(preset: DemoPreset) {
@@ -901,7 +911,7 @@ export class MockAutorailClient implements AutorailClient {
     try {
       this.seedBaseAgents();
       if (preset !== "fresh") {
-        for (let i = 1; i <= (preset === "complete" ? 12 : 10); i++) await this.runDemoStep(i);
+        for (let i = 1; i <= (preset === "complete" ? 12 : 10); i++) await this.runDemoStep(String(i));
         // A second invoice waiting for the lab, so the Lab screen has something to confirm.
         await this.createReceivable({ invoiceNumber: "INV-002", buyer: A.lab, amount: tusd("2.50"), dueDate: this.now() + 45 * DAY, invoiceHash: keccak256(stringToHex("INV-002 · Frontier Lab · eval suite v3")) });
       }
@@ -915,10 +925,10 @@ export class MockAutorailClient implements AutorailClient {
 
   private seedBaseAgents() {
     const base: Omit<Agent, "registeredAt" | "txHash" | "reputation" | "status">[] = [
-      { agentId: 3, name: "Autorail Underwriter", role: "underwriter", address: A.underwriter, owner: A.underwriter, metadataURI: "ipfs://bafy…underwriter/agent.json" },
-      { agentId: 7, name: "Frontier Lab · buyer agent", role: "buyer", address: A.lab, owner: A.lab, metadataURI: "ipfs://bafy…frontier/agent.json" },
-      { agentId: 9, name: "Kestrel GPU · x402 merchant", role: "merchant", address: A.merchant, owner: A.merchant, metadataURI: "ipfs://bafy…kestrel/agent.json" },
-      { agentId: 11, name: "Payout agent", role: "payout", address: A.payoutKey, owner: A.vendor, metadataURI: "ipfs://bafy…payout/agent.json" },
+      { agentId: 2, name: "Autorail Underwriter", role: "underwriter", address: A.underwriter, owner: A.underwriter, metadataURI: "ipfs://bafy…underwriter/agent.json" },
+      { agentId: 1, name: "Frontier Lab · buyer agent", role: "buyer", address: A.lab, owner: A.lab, metadataURI: "ipfs://bafy…frontier/agent.json" },
+      { agentId: 4, name: "Kestrel GPU · x402 merchant", role: "merchant", address: A.merchant, owner: A.merchant, metadataURI: "ipfs://bafy…kestrel/agent.json" },
+      { agentId: 3, name: "Payout agent", role: "payout", address: A.payoutKey, owner: A.vendor, metadataURI: "ipfs://bafy…payout/agent.json" },
     ];
     for (const b of base) {
       const ctx = this.nextTx();

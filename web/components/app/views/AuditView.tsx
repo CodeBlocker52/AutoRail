@@ -43,7 +43,7 @@ export function AuditView() {
   const { data: agents } = useAgents();
   const filter = useMemo(
     () => ({
-      receivableId: invoice === "all" ? undefined : Number(invoice),
+      receivableId: invoice === "all" ? undefined : invoice,
       agentId: agent === "all" ? undefined : Number(agent),
       types: TYPE_GROUPS.find((g) => g.id === group)?.types,
     }),

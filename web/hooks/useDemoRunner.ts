@@ -8,14 +8,14 @@ export function useDemoRunner() {
   const client = useClient();
   const toasts = useToasts();
   const steps = useAutorailQuery(["demo"], (c) => c.getDemoSteps());
-  const [active, setActive] = useState<{ id: number; stage: TxStage } | null>(null);
+  const [active, setActive] = useState<{ id: string; stage: TxStage } | null>(null);
   const [error, setError] = useState<DecodedError | null>(null);
   const [runningAll, setRunningAll] = useState(false);
   /** The step that finished most recently (drives presenter flashes and micro-motion). */
   const [lastFinished, setLastFinished] = useState<DemoStep | null>(null);
 
   const runStep = useCallback(
-    async (id: number) => {
+    async (id: string) => {
       setError(null);
       setActive({ id, stage: "signing" });
       const title = steps.data?.find((s) => s.id === id)?.title ?? "";
