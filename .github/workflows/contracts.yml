@@ -1,0 +1,26 @@
+name: contracts
+on:
+  push:
+    paths: ["contracts/**", ".github/workflows/contracts.yml"]
+  pull_request:
+    paths: ["contracts/**"]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pinned Solidity libs
+        run: forge install --no-git foundry-rs/forge-std@v1.17.0 OpenZeppelin/openzeppelin-contracts@v5.4.0 OpenZeppelin/openzeppelin-contracts-upgradeable@v5.4.0
+      - name: Build + Shanghai bytecode check
+        run: forge build && node tools/check-shanghai-reachable.mjs out
+      - name: Format
+        run: forge fmt --check
+      - name: Tests (unit, fuzz, invariants, demo)
+        run: forge test --no-match-path 'test/fork/*'

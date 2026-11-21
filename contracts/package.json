@@ -1,0 +1,19 @@
+{
+  "name": "autorail-contracts-scripts",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Autorail e2e demo, deployment checks and helpers (viem). Contracts are built with Foundry.",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p scripts"
+  },
+  "dependencies": {
+    "viem": "^2.58.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,26 @@
+# Compiler output
+cache/
+out/
+
+# Dependencies (restored with `make install`)
+lib/
+node_modules/
+
+# Secrets: never commit
+.env
+.env.*
+!.env.example
+keystores/
+
+# Foundry broadcast logs (public summaries live in deployments/)
+broadcast/
+
+# Local fork (chain 440050) rehearsal artifacts and archived demo runs
+deployments/440050*
+deployments/agents/440050-*
+deployments/demo-run-*.*.json
+
+# Read-only reference clones
+docs/reference/aevum-starter-kit/
+docs/reference/erc-8004-contracts/
+deployments/demo-run-440050.json
