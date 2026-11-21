@@ -20,7 +20,7 @@ export function AdvanceOfferCard({ receivable }: { receivable: Receivable }) {
     <Card>
       <CardHeader
         title={funded ? `Advance on ${receivable.invoiceNumber}` : `Advance offer · ${receivable.invoiceNumber}`}
-        eyebrow="Underwriting agent #3"
+        eyebrow={offer ? `Underwriting agent #${offer.underwriterAgentId}` : "Underwriting agent"}
         action={offer && <Badge tone={offer.riskBand === "A" ? "solid" : offer.riskBand === "B" ? "brand" : "warning"}>Band {offer.riskBand}</Badge>}
       />
       {isLoading || !offer ? (

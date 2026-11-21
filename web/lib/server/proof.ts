@@ -44,5 +44,6 @@ export async function latestRepaid() {
     timestamp: ts(last.blockNumber),
     feedback: fb ? { agentId: Number((fb.args as { agentId: bigint }).agentId), value: String((fb.args as { value: bigint }).value) } : null,
     totalRepaid: all.length,
+    invoiceNumber: `INV-${String(idx.byName("ReceivableCreated").findIndex((l) => String(l.args.id).toLowerCase() === a.id.toLowerCase()) + 1).padStart(3, "0")}`,
   };
 }

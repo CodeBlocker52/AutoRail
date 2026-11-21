@@ -70,7 +70,7 @@ const wallet: JobWallet = {
   ],
 };
 const session: Session = { id: "s1", jobWallet: wallet.address, key: A(0x11), label: "Payout agent", payees: wallet.payees.map((p) => p.address), perTxCap: tusd("1.2"), totalCap: tusd("3"), spent: tusd("2.8"), grantedAt: now0, expiresAt: now0 + 23 * 3600, revoked: false, txHash: H };
-const agent: Agent = { agentId: 12, name: "Lumen Data (Bengaluru)", role: "seller", address: A(0x3f), owner: A(0x3f), metadataURI: "ipfs://…", status: "online", lastAction: "Created INV-001", lastActionAt: now0 - 120, reputation: [], registeredAt: now0 };
+const agent: Agent = { agentId: 0, name: "Lumen Data (Bengaluru)", role: "seller", address: A(0x3f), owner: A(0x3f), metadataURI: "ipfs://…", status: "online", lastAction: "Created INV-001", lastActionAt: now0 - 120, reputation: [], registeredAt: now0 };
 const events: ActivityEvent[] = [
   { id: "1", type: "payment.blocked", title: "Blocked: 0.20 tUSD8 → 0xBAD… (unknown)", detail: "Injected instruction from job notes", status: "blocked", revertReason: "PayeeNotAllowed · This payee isn't on the job's approved list.", txHash: H, block: 1284380, timestamp: now0 },
   { id: "2", type: "payment.sent", title: "Paid 0.80 tUSD8 → GPU merchant (x402)", detail: "x402 · GPU job #4471", status: "ok", txHash: H, block: 1284372, timestamp: now0 - 60 },
@@ -229,7 +229,7 @@ export function DesignView() {
         </div>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <AgentCard agent={agent} role="seller" now={now} />
-          <AgentCard agent={{ ...agent, agentId: 11, name: "Payout agent", role: "payout", status: "blocked", lastAction: "Blocked: PayeeNotAllowed" }} role="payout" now={now} />
+          <AgentCard agent={{ ...agent, agentId: 3, name: "Payout agent", role: "payout", status: "blocked", lastAction: "Blocked: PayeeNotAllowed" }} role="payout" now={now} />
           <AgentCard role="merchant" />
           <div className="space-y-3"><Skeleton className="h-8 w-2/3" /><SkeletonRows rows={3} /></div>
         </div>

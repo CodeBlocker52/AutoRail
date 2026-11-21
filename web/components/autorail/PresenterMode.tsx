@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Check, ExternalLink, Loader2, Maximize2, RotateCcw, ShieldAlert, X } from "lucide-react";
 import type { DemoRunnerState } from "@/hooks/useDemoRunner";
-import { explorerTx } from "@/lib/chain/aevum";
+import { explorerTx, TARGET_CHAIN_ID } from "@/lib/chain/aevum";
 import { shortHash } from "@/lib/autorail/format";
 import { useVault } from "@/hooks/useVault";
 import { GridBackdrop } from "@/components/ui/GridBackdrop";
@@ -79,7 +79,7 @@ export function PresenterMode({ d, onClose }: { d: DemoRunnerState; onClose: () 
       {/* top bar */}
       <header className="relative flex items-center gap-4 px-6 py-4 sm:px-10">
         <LogoMark size={30} />
-        <p className="font-mono text-[12px] uppercase tracking-[0.2em] text-muted">Autorail · live demo · Aevum 44005</p>
+        <p className="font-mono text-[12px] uppercase tracking-[0.2em] text-muted">Autorail · {d.mode === "recorded" ? "recorded run" : d.mode === "live" ? "live run" : "demo"} · chain {TARGET_CHAIN_ID}</p>
         <div className="ml-auto flex items-center gap-2">
           <button
             onClick={() => (document.fullscreenElement ? document.exitFullscreen() : root.current?.requestFullscreen())?.catch?.(() => undefined)}

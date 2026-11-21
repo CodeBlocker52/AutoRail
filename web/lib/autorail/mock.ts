@@ -624,7 +624,7 @@ export class MockAutorailClient implements AutorailClient {
         sellerAgentId: seller.agentId,
         sellerName: seller.name,
         buyer: input.buyer,
-        buyerAgentId: buyer?.agentId ?? 0,
+        buyerAgentId: buyer?.agentId ?? 1,
         buyerName: buyer?.name.replace(/ · .*$/, "") ?? "Unregistered buyer",
         amount: input.amount,
         dueDate: input.dueDate,

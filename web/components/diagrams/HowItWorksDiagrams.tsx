@@ -2,11 +2,11 @@ import { ArrowRight, Check, KeyRound, Landmark, PenLine, Wallet } from "lucide-r
 import { DiagramCard } from "@/components/ui/DiagramCard";
 
 const agents = [
-  { id: 12, name: "Seller", who: "Lumen Data" },
-  { id: 7, name: "Buyer", who: "Frontier Lab" },
-  { id: 3, name: "Underwriter", who: "Autorail" },
-  { id: 11, name: "Payout", who: "session key" },
-  { id: 9, name: "GPU merchant", who: "x402" },
+  { id: 0, name: "Seller", who: "Lumen Data" },
+  { id: 1, name: "Buyer", who: "Frontier Lab" },
+  { id: 2, name: "Underwriter", who: "Autorail" },
+  { id: 3, name: "Payout", who: "session key" },
+  { id: 4, name: "GPU merchant", who: "x402" },
 ];
 
 export function RegisterDiagram() {
@@ -32,7 +32,7 @@ export function ConfirmDiagram() {
       <pre className="overflow-x-auto rounded-[10px] border border-line bg-bg/70 p-4 font-mono text-[12px] leading-relaxed text-text">
 {`Confirmation {
   invoice   INV-001  (0x9c1e…04ab)
-  seller    Lumen Data · #12
+  seller    Lumen Data · #0
   amount    4.00 tUSD8
   dueDate   19 Jan 2027
   payee     AutorailRouter 0x5e…a1
@@ -40,7 +40,7 @@ export function ConfirmDiagram() {
       </pre>
       <div className="mt-3 flex items-center gap-2 rounded-[10px] border border-brand-line bg-brand-soft px-3 py-2">
         <PenLine className="h-4 w-4 text-brand" aria-hidden />
-        <span className="text-[13px] text-ink">Signed by Frontier Lab buyer agent #7</span>
+        <span className="text-[13px] text-ink">Signed by Frontier Lab buyer agent #1</span>
         <Check className="ml-auto h-4 w-4 text-brand" aria-hidden />
       </div>
     </DiagramCard>

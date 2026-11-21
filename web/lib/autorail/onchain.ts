@@ -41,6 +41,7 @@ import {
 import { DEPLOYMENTS, type Deployment } from "./generated/deployments";
 import { ADDRESS_LABELS, DEMO_ADDRESSES } from "./generated/labels";
 import { RECORDED_RUN, RECORDED_RUN_ORDER } from "./generated/recordedRun";
+import { DEMO_CONFIG } from "./generated/demoConfig";
 import { isLiveAevum, POLL_INTERVAL_MS, TARGET_CHAIN_ID, targetChain } from "../chain/aevum";
 import type {
   ActivityEvent,
@@ -130,6 +131,20 @@ const STEP_META: Record<string, { actor: Role; proof: string; expect?: AutorailE
   "10b": { actor: "agents", proof: "Mined revert: SessionRevoked", expect: "SessionRevoked", description: "The agent retries after the revoke and is refused." },
   "11": { actor: "lab", proof: "Repaid · NewFeedback in the same tx", description: "The buyer signs an EIP-3009 authorization (no gas); the relayer submits it; lenders are repaid first." },
   "12": { actor: "agents", proof: "getSummary(seller, [router])", description: "The seller's ERC-8004 reputation now shows the on-time repayment." },
+};
+
+const L = DEMO_CONFIG.live;
+const t6 = (v: number) => (v / 1e6).toFixed(v % 10_000 === 0 ? 2 : 3);
+/** Live-run titles (amounts from the tiny `live` profile, not the recorded run). */
+const LIVE_TITLES: Record<string, string> = {
+  "1": `Lender deposits ${t6(L.lenderDeposit)} tUSD8 into the vault (EIP-2612 permit)`,
+  "3": `Seller agent creates a ${t6(L.invoiceAmount)} tUSD8 invoice`,
+  "7a": `Payout agent pays Annotator A ${t6(L.payA)}`,
+  "7b": `Payout agent pays Annotator B ${t6(L.payB)}`,
+  "7c": `Payout agent pays the GPU merchant ${t6(L.payGpu)} (x402-style)`,
+  "8": `Prompt-injection attempt: pay 0xBAD… ${t6(L.blockedRogue)}`,
+  "9": `Over-cap attempt: ${t6(L.blockedOverCap)} to the GPU merchant (cap ${t6(L.perTxCap)})`,
+  "10b": `Payout agent retries ${t6(L.blockedAfterRevoke)} after revoke`,
 };
 
 export class OnchainAutorailClient implements AutorailClient {
@@ -947,7 +962,7 @@ export class OnchainAutorailClient implements AutorailClient {
         const st = this.live?.steps[key];
         return {
           id: key,
-          title: rec?.title ?? key,
+          title: LIVE_TITLES[key] ?? rec?.title ?? key,
           description: meta.description,
           actor: meta.actor,
           proof: meta.proof,

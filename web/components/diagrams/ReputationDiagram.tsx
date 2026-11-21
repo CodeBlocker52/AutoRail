@@ -27,7 +27,7 @@ export function ReputationDiagram() {
         <LogoMark size={36} />
         <div className="min-w-0 flex-1">
           <p className="text-[14.5px] font-semibold text-ink">Lumen Data (Bengaluru)</p>
-          <p className="font-mono text-[11px] text-muted">Agent #12 · seller · score {last.score}</p>
+          <p className="font-mono text-[11px] text-muted">Agent #0 · seller · score {last.score}</p>
         </div>
         <span className="rounded-full border border-brand-line bg-brand-soft px-2.5 py-1 font-mono text-[11px] text-brand">Band A</span>
       </div>

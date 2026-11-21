@@ -4,7 +4,7 @@ import { DiagramCard } from "@/components/ui/DiagramCard";
 import { cn } from "@/lib/cn";
 
 const lines = [
-  { dir: "→", text: "POST /v1/gpu/jobs", meta: "payout agent #11", tone: "text" },
+  { dir: "→", text: "POST /v1/gpu/jobs", meta: "payout agent #3", tone: "text" },
   { dir: "←", text: "HTTP 402 Payment Required", meta: "0.80 tUSD8 · payTo 0x7c2e…e1a4", tone: "warn" },
   { dir: "→", text: "JobWallet.pay(0x7c2e…e1a4, 0.80)", meta: "payee ✓ · cap 1.20 ✓ · expiry ✓", tone: "brand" },
   { dir: "←", text: "tx 0x51d0…8a3f confirmed", meta: "block 1,284,372", tone: "brand" },
@@ -15,7 +15,7 @@ const lines = [
 export function X402Diagram() {
   const reduce = useReducedMotion();
   return (
-    <DiagramCard label="x402 request log" meta="kestrel-gpu.example" bodyClassName="!p-0">
+    <DiagramCard label="x402 request log" meta="kestrel-gpu.example · demo merchant" bodyClassName="!p-0">
       <ol className="divide-y divide-line font-mono text-[12px]">
         {lines.map((l, i) => (
           <motion.li
