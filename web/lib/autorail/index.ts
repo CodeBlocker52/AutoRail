@@ -1,17 +1,16 @@
 import type { AutorailClient } from "./client";
 import { MockAutorailClient } from "./mock";
 import { OnchainAutorailClient } from "./onchain";
+import { currentMode, type AppMode } from "./mode";
 
-export const AUTORAIL_MODE: "mock" | "onchain" = process.env.NEXT_PUBLIC_AUTORAIL_MODE === "onchain" ? "onchain" : "mock";
+const clients: Partial<Record<AppMode, AutorailClient>> = {};
 
-let client: AutorailClient | undefined;
-
-/** Singleton client chosen by NEXT_PUBLIC_AUTORAIL_MODE. */
-export function getAutorailClient(): AutorailClient {
-  client ??= AUTORAIL_MODE === "onchain" ? new OnchainAutorailClient() : new MockAutorailClient();
-  return client;
+/** One client per mode (Live = onchain, Demo data = mock). The mode comes from ModeProvider at runtime. */
+export function getAutorailClient(mode: AppMode = currentMode()): AutorailClient {
+  return (clients[mode] ??= mode === "onchain" ? new OnchainAutorailClient() : new MockAutorailClient());
 }
 
+export { currentMode, DEFAULT_MODE, resolveMode, switchMode, type AppMode } from "./mode";
 export type { AutorailClient } from "./client";
 export * from "./types";
 export * from "./format";

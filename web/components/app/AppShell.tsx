@@ -3,10 +3,9 @@ import { TARGET_CHAIN_ID, targetChain } from "@/lib/chain/aevum";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { Droplets } from "lucide-react";
+import { Droplets, Sparkles } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 import { Logo } from "@/components/ui/Logo";
-import { Badge } from "@/components/ui/Badge";
 import { Amount } from "@/components/ui/Amount";
 import { NetworkGuard } from "@/components/autorail/NetworkGuard";
 import { ROLES, useActor, useRole } from "@/hooks/useRole";
@@ -18,6 +17,7 @@ import { APP_NAV, pageTitle } from "./nav";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { ActingAs } from "./ActingAs";
 import { TestnetBanner } from "./TestnetBanner";
+import { ModeBanners, ModeToggle, StatusDot, StatusFooter } from "./ModeControls";
 
 function isActive(pathname: string, href: string) {
   return href === "/app" ? pathname === "/app" : pathname === href || pathname.startsWith(href + "/") || (href === "/app/vendor" && pathname.startsWith("/app/invoices"));
@@ -30,7 +30,7 @@ function SidebarFooter() {
   return (
     <div className="rounded-card border border-line bg-bg p-4">
       <div className="flex items-center gap-2">
-        <span className="h-2 w-2 animate-pulse rounded-full bg-brand" aria-hidden />
+        <StatusDot />
         <span className="text-[13px] font-medium text-ink">{targetChain.name} · {TARGET_CHAIN_ID}</span>
       </div>
       <dl className="mt-3 space-y-1.5 text-[13px]">
@@ -86,6 +86,13 @@ export function AppShell({ children }: { children: ReactNode }) {
             })}
           </ul>
         </nav>
+        <Link
+          href="/app/onboard"
+          aria-current={pathname.startsWith("/app/onboard") ? "page" : undefined}
+          className={cn("mb-3 flex items-center gap-2 rounded-btn border border-dashed border-brand-line px-3 py-2.5 text-[13.5px] font-medium text-brand hover:bg-brand-soft/50", pathname.startsWith("/app/onboard") && "bg-brand-soft")}
+        >
+          <Sparkles className="h-4 w-4" aria-hidden /> New here? Get started
+        </Link>
         <SidebarFooter />
       </aside>
 
@@ -100,7 +107,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Logo size={28} wordmark={false} />
             </Link>
             <h1 className="min-w-0 flex-1 truncate font-serif text-[22px] font-bold text-ink sm:text-[26px]">{pageTitle(pathname)}</h1>
-            {client.mode === "mock" && <Badge tone="warning" className="hidden xl:inline-flex">Mock data</Badge>}
+            <ModeToggle />
             <RoleSwitcher />
             {client.mode === "mock" && <ActingAs className="hidden min-w-0 md:block" />}
             <ConnectButton chainStatus="icon" accountStatus={{ smallScreen: "avatar", largeScreen: "address" }} showBalance={false} label="Connect" />
@@ -109,8 +116,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <main id="app-main" className="mx-auto max-w-[1320px] px-4 pb-28 pt-6 sm:px-6 lg:px-8 lg:pb-16 lg:pt-8">
           {client.mode === "mock" && <ActingAs className="mb-4 md:hidden" />}
+          <ModeBanners />
           <NetworkGuard />
           {children}
+          <StatusFooter />
         </main>
       </div>
 

@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Check, Copy, ExternalLink } from "lucide-react";
-import { explorerAddress, explorerTx, NO_EXPLORER_LABEL } from "@/lib/chain/aevum";
+import { explorerAddress, explorerTx, noExplorerLabel } from "@/lib/chain/aevum";
 import { shortAddr, shortHash } from "@/lib/autorail/format";
 import { cn } from "@/lib/cn";
 
@@ -91,7 +91,7 @@ export function TxHashLink({
     // fork / mock: no explorer has this tx; show the hash with a copy button
     return (
       <span
-        title={`${hash} (${NO_EXPLORER_LABEL})`}
+        title={`${hash} (${noExplorerLabel()})`}
         className={cn(
           "inline-flex items-center gap-1 font-mono text-[12.5px] tabular-nums text-text",
           className,
@@ -99,7 +99,7 @@ export function TxHashLink({
       >
         {short ? shortHash(hash) : hash}
         <CopyButton value={hash} label="transaction hash" />
-        <span className="font-sans text-[11px] text-muted">{NO_EXPLORER_LABEL}</span>
+        <span className="font-sans text-[11px] text-muted">{noExplorerLabel()}</span>
       </span>
     );
   }

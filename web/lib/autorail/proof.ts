@@ -12,8 +12,10 @@ export interface Settlement {
  * Loaded with dynamic import so the landing bundle stays small.
  */
 export async function latestSettlement(): Promise<Settlement | null> {
-  const { AUTORAIL_MODE } = await import("./index");
-  if (AUTORAIL_MODE === "onchain") return fromApi();
+  const { resolveMode, setRuntimeMode } = await import("./mode");
+  const mode = resolveMode();
+  setRuntimeMode(mode); // explorer links on the landing page follow the same Live / Demo choice
+  if (mode === "onchain") return fromApi();
   let client;
   {
     const { MockAutorailClient } = await import("./mock");

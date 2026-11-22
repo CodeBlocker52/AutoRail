@@ -15,7 +15,9 @@ export function useDemoRunner() {
   const client = useClient();
   const qc = useQueryClient();
   const toasts = useToasts();
-  const [mode, setModeState] = useState<DemoMode>(() => client.getDemoMode());
+  // The client can change after mount (Live / Demo data toggle), so derive the mock case from it.
+  const [onchainMode, setModeState] = useState<DemoMode>("recorded");
+  const mode: DemoMode = client.mode === "mock" ? "mock" : onchainMode;
   const raw = useAutorailQuery(["demo", mode], (c) => c.getDemoSteps());
   const [active, setActive] = useState<{ id: string; stage: TxStage } | null>(null);
   const [error, setError] = useState<DecodedError | null>(null);

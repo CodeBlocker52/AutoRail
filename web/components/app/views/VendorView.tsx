@@ -5,6 +5,10 @@ import { keccak256, stringToHex, toHex } from "viem";
 import { BadgeCheck, Upload } from "lucide-react";
 import type { Address, AgentRole, Hash } from "@/lib/autorail/types";
 import { formatDate, parseTokenInput, shortHash } from "@/lib/autorail/format";
+import { decodeError } from "@/lib/autorail/errors";
+import { DEPLOYMENTS } from "@/lib/autorail/generated/deployments";
+import { TARGET_CHAIN_ID } from "@/lib/chain/aevum";
+import { OnboardCallout } from "@/components/app/OnboardCallout";
 import { useActor, useAgents, useClient, useReceivables, useTx } from "@/hooks";
 import { AddressChip, TxHashLink } from "@/components/ui/AddressChip";
 import { Button } from "@/components/ui/Button";
@@ -17,6 +21,8 @@ import { InvoicesTable } from "@/components/autorail/InvoicesTable";
 import { AdvanceOfferCard } from "@/components/autorail/AdvanceOfferCard";
 
 const isAddr = (v: string) => /^0x[0-9a-fA-F]{40}$/.test(v);
+/** Our "Frontier Lab" buyer agent (ERC-8004 #1 on Aevum). */
+const OUR_LAB_AGENT_ID: number = (DEPLOYMENTS as unknown as Record<number, { agents: Record<string, number> }>)[TARGET_CHAIN_ID]?.agents["frontier-lab"] ?? 1;
 const dateInput = (d: Date) => d.toISOString().slice(0, 10);
 
 function RegisterAgentCard() {
@@ -62,6 +68,10 @@ function RegisterAgentCard() {
             )}
           </dl>
         </div>
+      ) : client.mode === "onchain" ? (
+        <EmptyState title="No vendor agent on this wallet">
+          Register an ERC-8004 agent and get the Seller role on the <Link href="/app/onboard?role=vendor" className="font-medium text-brand underline-offset-2 hover:underline">Get started</Link> page.
+        </EmptyState>
       ) : (
         <form
           className="space-y-4"
@@ -110,6 +120,7 @@ function CreateInvoiceCard({ nextNumber }: { nextNumber: string }) {
   const [due, setDue] = useState(() => dateInput(new Date(Date.now() + 60 * 86400_000)));
   const [fileHash, setFileHash] = useState<{ name: string; hash: Hash } | null>(null);
   const [createdId, setCreatedId] = useState<string | null>(null);
+  const [labConfirm, setLabConfirm] = useState<{ state: "working" | "done" | "refused"; hash?: Hash; message?: string } | null>(null);
 
   useEffect(() => setNum(nextNumber), [nextNumber]);
   useEffect(() => {
@@ -117,6 +128,7 @@ function CreateInvoiceCard({ nextNumber }: { nextNumber: string }) {
   }, [buyers, buyerSel]);
 
   const buyer = buyerSel === "custom" ? custom : buyerSel;
+  const toOurLab = buyers.find((b) => b.address === buyerSel)?.agentId === OUR_LAB_AGENT_ID;
   const amountV = parseTokenInput(amount);
   const dueTs = Math.floor(new Date(due + "T12:00:00").getTime() / 1000);
   const fallbackHash = useMemo(() => keccak256(stringToHex(`${num}|${buyer}|${amount}|${due}`)), [num, buyer, amount, due]);
@@ -132,11 +144,22 @@ function CreateInvoiceCard({ nextNumber }: { nextNumber: string }) {
           e.preventDefault();
           if (!valid) return;
           setCreatedId(null);
+          setLabConfirm(null);
           const r = await tx.run((o) => client.createReceivable({ invoiceNumber: num, buyer: buyer as Address, amount: amountV!, dueDate: dueTs, invoiceHash: hash }, o));
           if (r) {
             setCreatedId(r.receivableId);
             setAmount("");
             setFileHash(null);
+            // Our Frontier Lab agent auto-confirms invoices from onboarded vendors (≤ 0.20 tUSD8), so a solo judge can continue.
+            if (toOurLab && client.requestLabConfirm) {
+              setLabConfirm({ state: "working" });
+              try {
+                const c = await client.requestLabConfirm(r.receivableId);
+                setLabConfirm({ state: "done", hash: c.txHash ?? undefined });
+              } catch (e) {
+                setLabConfirm({ state: "refused", message: decodeError(e).message });
+              }
+            }
           }
         }}
       >
@@ -191,9 +214,17 @@ function CreateInvoiceCard({ nextNumber }: { nextNumber: string }) {
         <TxStatus stage={tx.stage} hash={tx.hash} error={tx.error} onDismiss={tx.reset} />
         {createdId && (
           <p className="text-[13.5px] text-brand">
-            Created. <Link href={`/app/invoices/${createdId}`} className="font-medium underline">Open invoice {createdId.length > 12 ? `${createdId.slice(0, 10)}…` : `#${createdId}`}</Link>, then ask the lab to confirm it.
+            Created. <Link href={`/app/invoices/${createdId}`} className="font-medium underline">Open invoice {createdId.length > 12 ? `${createdId.slice(0, 10)}…` : `#${createdId}`}</Link>
+            {labConfirm ? "." : ", then ask the lab to confirm it."}
           </p>
         )}
+        {labConfirm?.state === "working" && <p className="text-[13.5px] text-muted" role="status">Frontier Lab is reviewing and signing the confirmation…</p>}
+        {labConfirm?.state === "done" && (
+          <p className="text-[13.5px] text-brand" role="status">
+            Frontier Lab confirmed it (EIP-712, payee = Autorail router). {labConfirm.hash && <TxHashLink hash={labConfirm.hash} />} Next: accept the advance offer on the left.
+          </p>
+        )}
+        {labConfirm?.state === "refused" && <p className="text-[13.5px] text-warning" role="status">Frontier Lab didn&apos;t auto-confirm: {labConfirm.message}</p>}
       </form>
     </Card>
   );
@@ -208,6 +239,7 @@ export function VendorView() {
 
   return (
     <div className="space-y-6">
+      <OnboardCallout role="vendor" />
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
         <div className="space-y-6">
           <RegisterAgentCard />

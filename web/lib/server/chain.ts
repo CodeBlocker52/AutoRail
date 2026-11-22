@@ -9,6 +9,7 @@ import {
   type Abi,
   type Address,
   type Hash,
+  type Hex,
   type PublicClient,
   type TransactionReceipt,
 } from "viem";
@@ -19,6 +20,7 @@ import * as abis from "@/lib/autorail/generated/abis";
 import { decodeRevertData } from "@/lib/autorail/errors";
 import { withRetry } from "@/lib/autorail/indexer";
 import { log } from "./log";
+import { store } from "./store";
 
 export function deployment() {
   const d = (DEPLOYMENTS as unknown as Record<number, (typeof DEPLOYMENTS)[44005]>)[TARGET_CHAIN_ID];
@@ -40,14 +42,32 @@ const ALL_ERRORS = Object.values(abis)
   .flat()
   .filter((x) => (x as { type: string }).type === "error") as unknown as Abi;
 
-/** Per-account nonce manager (one per server instance; resynced from "pending" on any send failure). */
-const nextNonce = new Map<string, number>();
-async function takeNonce(client: PublicClient, address: Address) {
-  const k = address.toLowerCase();
-  if (!nextNonce.has(k)) nextNonce.set(k, await withRetry(() => client.getTransactionCount({ address, blockTag: "pending" })));
-  const n = nextNonce.get(k)!;
-  nextNonce.set(k, n + 1);
-  return n;
+/**
+ * Nonce manager that is safe across serverless instances: each send for a signer runs under a short Upstash lock
+ * (`SET NX EX`), and the next nonce is max(node "pending" count, last nonce we used + 1, kept in the store). On
+ * any broadcast failure the stored value is dropped and the next send resyncs from the node.
+ */
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+async function withSignerLock<T>(address: Address, fn: () => Promise<T>): Promise<T> {
+  const key = `nonce-lock:${TARGET_CHAIN_ID}:${address.toLowerCase()}`;
+  const deadline = Date.now() + 30_000;
+  while (!(await store.claim(key, 20))) {
+    if (Date.now() > deadline) throw new Error("signer busy: another request is sending from this wallet");
+    await sleep(200 + Math.floor(Math.random() * 200));
+  }
+  try {
+    return await fn();
+  } finally {
+    await store.del(key).catch(() => undefined);
+  }
+}
+const nonceKey = (address: Address) => `nonce:${TARGET_CHAIN_ID}:${address.toLowerCase()}`;
+async function nextNonce(client: PublicClient, address: Address) {
+  const [pending, stored] = await Promise.all([
+    withRetry(() => client.getTransactionCount({ address, blockTag: "pending" })),
+    store.get<number>(nonceKey(address)),
+  ]);
+  return Math.max(pending, stored ?? 0);
 }
 
 export interface Call {
@@ -109,36 +129,49 @@ export async function send(
   call: Call,
   opts: { gas?: bigint; onHash?: (h: Hash) => void | Promise<void> } = {},
 ): Promise<Sent> {
-  const client = publicClient();
   const data = encodeFunctionData({ abi: call.abi, functionName: call.functionName, args: call.args ?? [] } as never);
-  const gas = opts.gas ?? ((await withRetry(() => client.estimateGas({ account: from, to: call.address, data }))) * 12n) / 10n;
+  const out = await broadcast(from, { to: call.address, data }, call.functionName, opts);
+  if (out.status === "reverted") Object.assign(out, await revertReason(from.address, call, out.receipt.blockNumber - 1n));
+  return out;
+}
+
+/** Plain tQDAY transfer (gas drip). */
+export function sendValue(from: PrivateKeyAccount, to: Address, value: bigint) {
+  return broadcast(from, { to, value }, "transfer", { gas: 21_000n });
+}
+
+async function broadcast(
+  from: PrivateKeyAccount,
+  tx: { to: Address; data?: Hex; value?: bigint },
+  label: string,
+  opts: { gas?: bigint; onHash?: (h: Hash) => void | Promise<void> },
+): Promise<Sent> {
+  const client = publicClient();
+  const gas = opts.gas ?? ((await withRetry(() => client.estimateGas({ account: from, to: tx.to, data: tx.data, value: tx.value }))) * 12n) / 10n;
   const gasPrice = await withRetry(() => client.getGasPrice());
-  const nonce = await takeNonce(client, from.address);
-  const serialized = await from.signTransaction({ to: call.address, data, gas, gasPrice, nonce, chainId: TARGET_CHAIN_ID, type: "legacy" });
-  const hash = keccak256(serialized);
-  await opts.onHash?.(hash);
-  try {
-    await withRetry(async () => {
-      try {
-        await client.sendRawTransaction({ serializedTransaction: serialized });
-      } catch (e) {
-        if (/already known|known transaction|already imported/i.test(String((e as Error).message))) return;
-        throw e;
-      }
-    });
-  } catch (e) {
-    nextNonce.delete(from.address.toLowerCase());
-    throw e;
-  }
+  const hash = await withSignerLock(from.address, async () => {
+    const nonce = await nextNonce(client, from.address);
+    const serialized = await from.signTransaction({ to: tx.to, data: tx.data, value: tx.value, gas, gasPrice, nonce, chainId: TARGET_CHAIN_ID, type: "legacy" });
+    const h = keccak256(serialized);
+    await opts.onHash?.(h);
+    try {
+      await withRetry(async () => {
+        try {
+          await client.sendRawTransaction({ serializedTransaction: serialized });
+        } catch (e) {
+          if (/already known|known transaction|already imported/i.test(String((e as Error).message))) return;
+          throw e;
+        }
+      });
+    } catch (e) {
+      await store.del(nonceKey(from.address)).catch(() => undefined);
+      throw e;
+    }
+    await store.set(nonceKey(from.address), nonce + 1, 600);
+    return h;
+  });
   const receipt = await withRetry(() => client.waitForTransactionReceipt({ hash, timeout: 120_000, pollingInterval: 1_500 }));
   const out: Sent = { hash, status: receipt.status, block: Number(receipt.blockNumber), receipt };
-  if (receipt.status === "reverted") Object.assign(out, await revertReason(from.address, call, receipt.blockNumber - 1n));
-  log(receipt.status === "success" ? "info" : "warn", "tx", {
-    fn: call.functionName,
-    hash,
-    status: receipt.status,
-    block: out.block,
-    error: out.errorName,
-  });
+  log(receipt.status === "success" ? "info" : "warn", "tx", { fn: label, hash, status: receipt.status, block: out.block });
   return out;
 }
