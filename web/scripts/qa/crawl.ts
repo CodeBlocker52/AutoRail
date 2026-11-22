@@ -51,8 +51,9 @@ async function visit(page: Page, route: string, width: number) {
   page.on("requestfailed", onFailed);
   page.on("response", onResponse);
   try {
-    await page.goto(BASE + route, { waitUntil: "networkidle", timeout: 120_000 });
-    await page.waitForTimeout(route === "/" ? 4_000 : 7_000); // let polling data and the indexer land
+    // Live pages poll every 4 s, so "networkidle" may never come: wait for load, then let data and the indexer land.
+    await page.goto(BASE + route, { waitUntil: "load", timeout: 90_000 });
+    await page.waitForTimeout(route === "/" ? 5_000 : 9_000);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     if (overflow > 1) issues.push({ route, width, kind: "horizontal-overflow", detail: `${overflow}px wider than the viewport` });
     const links = await page.$$eval("a[href]", (as) => as.map((a) => (a as HTMLAnchorElement).getAttribute("href")!));
@@ -94,7 +95,7 @@ async function main() {
   {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
     const page = await ctx.newPage();
-    await page.goto(BASE + "/", { waitUntil: "networkidle" });
+    await page.goto(BASE + "/", { waitUntil: "load" });
     const strip = page.getByText("Latest settlement", { exact: false }).first();
     await strip.waitFor({ timeout: 30_000 }).catch(() => undefined);
     const href = await page.locator(`a[href^="${EXPLORER}/tx/"]`).first().getAttribute("href").catch(() => null);

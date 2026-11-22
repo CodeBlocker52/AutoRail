@@ -49,7 +49,7 @@ export function EventLog({ events, className, maxHeight, compact, emptyText = "N
                 <p className={cn("min-w-0 font-sans text-[13.5px]", blocked ? "font-medium text-danger" : "text-ink")}>{e.title}</p>
                 <TxHashLink hash={e.txHash} className={cn("text-[11.5px]", blocked && "!text-danger")} />
               </div>
-              <p className="text-[11px] text-muted sm:hidden">{formatEventTime(e.timestamp)}</p>
+              <p className="text-[11px] text-text/80 sm:hidden">{formatEventTime(e.timestamp)}</p>
               {blocked && e.revertReason && <p className="mt-0.5 line-clamp-2 text-[11.5px] text-danger">↳ reverted: {e.revertReason}</p>}
               {!compact && e.detail && <p className={cn("mt-0.5 line-clamp-2 break-words text-[11.5px]", blocked ? "text-danger" : "text-muted")}>{e.detail}</p>}
             </div>

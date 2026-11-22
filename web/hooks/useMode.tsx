@@ -26,7 +26,8 @@ interface ModeState {
 
 const Ctx = createContext<ModeState>({ mode: DEFAULT_MODE, ready: false, setMode: switchMode, health: null, rpcDown: false, recheck: () => {} });
 
-export function ModeProvider({ children }: { children: ReactNode }) {
+/** `force` pins the mode for a page (e.g. /design shows sample data only). */
+export function ModeProvider({ children, force }: { children: ReactNode; force?: AppMode }) {
   const [mode, setModeState] = useState<AppMode>(DEFAULT_MODE);
   const [ready, setReady] = useState(false);
   const [health, setHealth] = useState<Health | null>(null);
@@ -34,11 +35,11 @@ export function ModeProvider({ children }: { children: ReactNode }) {
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
-    const m = resolveMode();
+    const m = force ?? resolveMode();
     setRuntimeMode(m);
     setModeState(m);
     setReady(true);
-  }, []);
+  }, [force]);
 
   useEffect(() => {
     if (!ready || mode !== "onchain") return;

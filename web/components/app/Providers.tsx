@@ -9,6 +9,7 @@ import { wagmiConfig } from "@/lib/wagmi";
 import { AUTORAIL_KEY, useClient } from "@/hooks/useClient";
 import { RoleProvider } from "@/hooks/useRole";
 import { ModeProvider } from "@/hooks/useMode";
+import type { AppMode } from "@/lib/autorail/mode";
 import { ToastProvider } from "@/components/ui/Toast";
 
 /** Re-fetch Autorail queries when the client reports a change; hand the wallet to the client. */
@@ -34,7 +35,7 @@ function AutorailBridge() {
   return null;
 }
 
-export function Providers({ children }: { children: ReactNode }) {
+export function Providers({ children, forceMode }: { children: ReactNode; forceMode?: AppMode }) {
   const [qc] = useState(
     () =>
       new QueryClient({
@@ -42,7 +43,7 @@ export function Providers({ children }: { children: ReactNode }) {
       }),
   );
   return (
-    <ModeProvider>
+    <ModeProvider force={forceMode}>
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={qc}>
           <RainbowKitProvider
