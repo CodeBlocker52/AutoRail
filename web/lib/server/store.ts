@@ -1,6 +1,7 @@
 import "server-only";
 import { Redis } from "@upstash/redis";
 import { log } from "./log";
+import { TARGET_CHAIN_ID } from "@/lib/chain/aevum";
 
 /**
  * Shared key-value store for idempotency keys, rate limits and recorded blocked attempts.
@@ -113,7 +114,8 @@ export const store: KV =
 /** Fixed-window rate limit: at most `max` hits per `windowSeconds` for `bucket`. Fails open if the store is down. */
 export async function limited(bucket: string, max: number, windowSeconds = 60) {
   try {
-    return (await store.incr(`rl:${bucket}:${Math.floor(Date.now() / 1000 / windowSeconds)}`, windowSeconds)) > max;
+    // chain-scoped: local dev / the fork must never spend production's quotas in a shared KV
+    return (await store.incr(`rl:${TARGET_CHAIN_ID}:${bucket}:${Math.floor(Date.now() / 1000 / windowSeconds)}`, windowSeconds)) > max;
   } catch (e) {
     log("warn", "ratelimit.store_unavailable", { kind: store.kind, error: String((e as Error)?.message ?? e).slice(0, 120) });
     return false;

@@ -131,7 +131,10 @@ function CreateInvoiceCard({ nextNumber }: { nextNumber: string }) {
   const toOurLab = buyers.find((b) => b.address === buyerSel)?.agentId === OUR_LAB_AGENT_ID;
   const amountV = parseTokenInput(amount);
   const dueTs = Math.floor(new Date(due + "T12:00:00").getTime() / 1000);
-  const fallbackHash = useMemo(() => keccak256(stringToHex(`${num}|${buyer}|${amount}|${due}`)), [num, buyer, amount, due]);
+  const seller = useActor("vendor");
+  // Without a file, hash the invoice details AND the seller: two vendors billing the same lab "INV-001 · 0.05" on the
+  // same day must not collide (the registry rejects duplicate invoice hashes globally).
+  const fallbackHash = useMemo(() => keccak256(stringToHex(`${seller ?? ""}|${num}|${buyer}|${amount}|${due}`)), [seller, num, buyer, amount, due]);
   const hash = fileHash?.hash ?? fallbackHash;
   const valid = !!num.trim() && isAddr(buyer) && !!amountV && dueTs > Date.now() / 1000;
 

@@ -193,6 +193,10 @@ export class OnchainAutorailClient implements AutorailClient {
   setWalletClient(wallet: WalletClient | undefined) {
     this.wallet = wallet;
   }
+  private connection: { connected: boolean; chainId?: number } = { connected: false };
+  setConnectionState(state: { connected: boolean; chainId?: number }) {
+    this.connection = state;
+  }
   resolveActor(_role: Role, connected?: Address) {
     return connected;
   }
@@ -792,6 +796,8 @@ export class OnchainAutorailClient implements AutorailClient {
    */
   private async signer({ needsGas = true }: { needsGas?: boolean } = {}) {
     const w = this.wallet;
+    // connected on another chain → wagmi gives no wallet client; say "switch", not "connect"
+    if (!w?.account && this.connection.connected && this.connection.chainId !== TARGET_CHAIN_ID) throw new AutorailError("WrongChain");
     if (!w?.account) throw new AutorailError("NotConnected");
     const chainId = await w.getChainId().catch(() => w.chain?.id);
     if (chainId !== TARGET_CHAIN_ID) throw new AutorailError("WrongChain");

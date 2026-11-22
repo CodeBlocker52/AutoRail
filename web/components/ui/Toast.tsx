@@ -73,7 +73,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={api}>
       {children}
-      <div aria-live="polite" aria-label="Transactions" className="pointer-events-none fixed bottom-20 right-3 z-[110] flex w-[min(380px,calc(100vw-24px))] flex-col gap-2 lg:bottom-6 lg:right-6">
+      <div role="region" aria-live="polite" aria-label="Transactions" className="pointer-events-none fixed bottom-20 right-3 z-[110] flex w-[min(380px,calc(100vw-24px))] flex-col gap-2 lg:bottom-6 lg:right-6">
         {items.map((t) => (
           <div key={t.id} className="pointer-events-auto animate-[toast-in_.25s_ease-out] rounded-card border border-line bg-surface p-3 shadow-lift">
             <div className="mb-2 flex items-start justify-between gap-2">

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { KeyRound } from "lucide-react";
 import type { ActivityEvent, Agent, JobWallet, Session, TypedDataPayload } from "@/lib/autorail/types";
 import { tusd } from "@/lib/autorail/format";
@@ -87,7 +87,18 @@ function Block({ title, children, id }: { title: string; children: React.ReactNo
   );
 }
 
+/**
+ * The sample data is built from the current time and the viewer's timezone, so render the showcase after mount:
+ * a prerendered copy would never match the browser (React hydration error #418).
+ */
 export function DesignView() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return <div className="mx-auto min-h-screen max-w-page px-5 pt-16 font-mono text-[12px] text-muted">Loading the design system…</div>;
+  return <DesignShowcase />;
+}
+
+function DesignShowcase() {
   const [modal, setModal] = useState(false);
   const [grant, setGrant] = useState(false);
   const [tab, setTab] = useState<"a" | "b" | "c">("a");

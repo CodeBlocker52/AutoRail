@@ -23,7 +23,8 @@ function AutorailBridge() {
   useEffect(() => client.setWalletClient(wallet ?? undefined), [client, wallet]);
   // e2e on the local fork only: connect the injected test key automatically
   const { connect, connectors } = useConnect();
-  const { isConnected } = useAccount();
+  const { isConnected, chainId } = useAccount();
+  useEffect(() => client.setConnectionState?.({ connected: isConnected, chainId }), [client, isConnected, chainId]);
   useEffect(() => {
     if (!isConnected && testKeyAvailable()) {
       const c = connectors.find((x) => x.id === "autorail-test-key");

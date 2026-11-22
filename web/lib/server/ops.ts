@@ -1,6 +1,6 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
-import { decodeEventLog, getAddress, parseSignature, type Address, type Hash, type Hex } from "viem";
+import { decodeEventLog, getAddress, parseSignature, type Abi, type Address, type Hash, type Hex } from "viem";
 import { creditFacilityAbi, jobWalletAbi, jobWalletFactoryAbi, receivableRegistryAbi, repaymentRouterAbi } from "@/lib/autorail/generated/abis";
 import { ADDRESS_LABELS, DEMO_ADDRESSES } from "@/lib/autorail/generated/labels";
 import { buildQuote, OFFER_TYPES, type Offer } from "@/lib/autorail/underwriting";
@@ -129,7 +129,8 @@ export interface PayoutResult {
   payeeLabel: string;
   amount: string;
   hash?: Hash;
-  status: "paid" | "blocked" | "skipped";
+  /** "skipped" = signed, outcome unknown (internal); "pending" = sent earlier, not mined yet. */
+  status: "paid" | "blocked" | "skipped" | "pending";
   errorName?: string;
   block?: number;
   note?: string;
@@ -150,8 +151,22 @@ export async function runPayout(jobWallet: Address, lines: PayoutLine[], idempot
   for (const [i, line] of lines.entries()) {
     const key = `payout:${TARGET_CHAIN_ID}:${idempotencyKey}:${i}`;
     const prev = await store.get<PayoutResult>(key);
+    if (prev?.hash && prev.status !== "skipped") {
+      results.push(prev);
+      continue;
+    }
     if (prev?.hash) {
-      results.push({ ...prev, status: prev.status });
+      // Signed and (maybe) broadcast earlier, then the request died (e.g. RPC timeout). Never sign a second
+      // payment for the same key: look the first one up instead.
+      const rc = await client.waitForTransactionReceipt({ hash: prev.hash, timeout: 45_000, pollingInterval: 1_500 }).catch(() => null);
+      if (!rc) {
+        results.push({ ...prev, status: "pending" as PayoutResult["status"], note: "Sent earlier; not mined yet. Retry later with the same idempotency key." });
+        continue;
+      }
+      const errorName = rc.status === "reverted" ? (await revertReason(agent.address, { address: jobWallet, abi: jobWalletAbi as unknown as Abi, functionName: "pay", args: [line.payee, line.amount, line.memo] }, rc.blockNumber - 1n)).errorName : undefined;
+      const res: PayoutResult = { payee: line.payee, payeeLabel: ADDRESS_LABELS[line.payee.toLowerCase()] ?? line.payee, amount: line.amount.toString(), hash: prev.hash, status: rc.status === "success" ? "paid" : "blocked", errorName, block: Number(rc.blockNumber), note: line.note };
+      await store.set(key, res, 86_400);
+      results.push(res);
       continue;
     }
     const call = { address: jobWallet, abi: jobWalletAbi, functionName: "pay", args: [line.payee, line.amount, line.memo] } as const;
@@ -223,10 +238,12 @@ export async function merchantQuote(price = GPU_PRICE) {
 export async function merchantVerify(requestId: Hex, txHash: Hash) {
   const quote = await store.get<{ price: string }>(`x402:quote:${requestId}`);
   if (!quote) throw new OpError("UnknownRequest", "Unknown or expired request id.", 400);
-  if (!(await store.claim(`x402:used:${txHash.toLowerCase()}`, 86_400 * 30))) throw new OpError("PaymentUsed", "This payment was already used.", 409);
+  if (await store.get(`x402:done:${requestId}`)) throw new OpError("RequestUsed", "This request id was already paid and served.", 409);
   const client = publicClient();
-  const receipt = await client.getTransactionReceipt({ hash: txHash });
+  const receipt = await client.getTransactionReceipt({ hash: txHash }).catch(() => null);
+  if (!receipt) throw new OpError("PaymentNotFound", "No mined transaction with that hash (yet). Retry once it's mined.", 402);
   if (receipt.status !== "success") throw new OpError("PaymentReverted", "The payment transaction reverted.", 402);
+  if (!(await store.claim(`x402:used:${txHash.toLowerCase()}`, 86_400 * 30))) throw new OpError("PaymentUsed", "This payment was already used.", 409);
   const merchant = getAddress(DEMO_ADDRESSES.MERCHANT);
   for (const l of receipt.logs) {
     try {
@@ -237,8 +254,11 @@ export async function merchantVerify(requestId: Hex, txHash: Hash) {
       const rid = (await client.readContract({ address: l.address, abi: jobWalletAbi, functionName: "receivableId" })) as Hex;
       const wallet = (await client.readContract({ address: contracts().factory, abi: jobWalletFactoryAbi, functionName: "walletOf", args: [rid] })) as Address;
       if (getAddress(wallet) !== getAddress(l.address)) continue;
+      // one job per request id, even if someone pays the same request id twice
+      if (!(await store.claim(`x402:done:${requestId}`, 86_400 * 30))) throw new OpError("RequestUsed", "This request id was already paid and served.", 409);
       return { requestId, job: `job_${requestId.slice(2, 8)}`, status: "complete", result: `s3://kestrel-gpu/results/${requestId.slice(2, 10)}.tar`, paidTx: txHash, jobWallet: l.address };
-    } catch {
+    } catch (e) {
+      if (e instanceof OpError) throw e;
       /* not a JobWallet event */
     }
   }

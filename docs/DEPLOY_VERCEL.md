@@ -25,7 +25,7 @@ Set these for **Production** (and Preview if you want previews to work onchain).
 
 | Variable | Value | Notes |
 |---|---|---|
-| `NEXT_PUBLIC_AUTORAIL_MODE` | `onchain` | `mock` gives the in-memory demo |
+| `NEXT_PUBLIC_AUTORAIL_MODE` | `onchain` | Default data source. Unset also means onchain; `mock` makes "Demo data" the default. Users can switch either way with the header toggle. |
 | `NEXT_PUBLIC_AUTORAIL_CHAIN_ID` | `44005` | never `440050` on Vercel |
 | `NEXT_PUBLIC_AEVUM_RPC_URL` | `https://rpc-test.qday.info` | optional (this is the default) |
 | `NEXT_PUBLIC_DEPLOYED` | `true` | landing page says "live on Aevum testnet" |
@@ -43,7 +43,10 @@ Set these for **Production** (and Preview if you want previews to work onchain).
 | `PAYOUT_SESSION_PRIVATE_KEY` | `/api/agents/payout`, "Run live" | the payout agent's session key |
 | `LENDER_PRIVATE_KEY` | "Run live" only | needs ≥ 0.08 tUSD8 per run |
 | `SELLER_PRIVATE_KEY` | "Run live" only | owner of ERC-8004 agent #0 |
-| `BUYER_PRIVATE_KEY` | "Run live" only | needs ≥ 0.10 tUSD8 per run |
+| `BUYER_PRIVATE_KEY` | "Run live"; Frontier Lab auto-confirm (`/api/lab/confirm`) | needs ≥ 0.10 tUSD8 per live run and a little tQDAY for confirm txs |
+| `ROLES_OPERATOR_PRIVATE_KEY` | `/api/onboard` | owns **only** `AutorailRoles` (see `docs/ROLES_OPERATOR.md`); keep ≥ 0.005 tQDAY |
+| `DRIP_PRIVATE_KEY` | `/api/drip` | 0.02 tQDAY per new wallet; keep ≥ 0.04 tQDAY |
+| `DRIP_MAX_COUNT` | `/api/drip` | optional, total drips allowed (default 25) |
 | `KV_REST_API_URL` | all routes | Upstash Redis REST URL (added automatically by the Vercel KV / Upstash integration) |
 | `KV_REST_API_TOKEN` | all routes | Upstash REST token |
 | `AUTORAIL_RPC_URL` | optional | server-side RPC override |
@@ -63,6 +66,10 @@ Don't set `UPSTASH_REDIS_REST_URL` / `_TOKEN` as well as the `KV_` pair: `KV_` t
 Replace `$APP` with the deployment URL.
 
 ```bash
+# 0. Health: mode onchain, KV ok, onboarding on, every wallet above its threshold
+curl -s $APP/api/health | jq '{status, mode, kv, features, rolesOperatorOwnsRoles, warnings}'
+#    → status "ok", mode "onchain", kv.ok true, all features true, rolesOperatorOwnsRoles true, warnings []
+
 # 1. Relayer is configured (address only, never the key)
 curl -s $APP/api/relay                      # → {"enabled":true,"relayer":"0x4355…6E26"}
 

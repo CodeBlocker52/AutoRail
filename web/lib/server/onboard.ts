@@ -56,13 +56,13 @@ export async function onboard(req: OnboardRequest) {
   const ok = await client.verifyMessage({ address: addr, message: onboardingMessage({ ...req, address: addr }), signature: req.signature });
   if (!ok) throw new OpError("InvalidSignature", "The signature doesn't match this wallet.");
 
-  // Idempotent: this wallet already speaks for an agent in this role
-  const [has, existing] = (await client.readContract({ address: c().roles, abi: autorailRolesAbi, functionName: "isAgent", args: [addr, roleIdx] })) as [boolean, bigint];
-  if (has) return { agentId: Number(existing), role: ROLE[req.role].name, txHashes: [] as Hash[], alreadyOnboarded: true };
-
   const owner = (await client.readContract({ address: c().identity, abi: identityRegistryAbi, functionName: "ownerOf", args: [req.agentId] }).catch(() => zeroAddress)) as Address;
   if (owner === zeroAddress) throw new OpError("UnknownAgent", `Agent #${req.agentId} isn't registered in the ERC-8004 Identity Registry.`);
   if (getAddress(owner) !== addr) throw new OpError("NotAgentOwner", `Agent #${req.agentId} isn't owned by this wallet.`, 403);
+  // Idempotent: this wallet already speaks for an agent in this role (checked after ownership, so a request for
+  // someone else's agent is refused even if the caller is onboarded)
+  const [has, existing] = (await client.readContract({ address: c().roles, abi: autorailRolesAbi, functionName: "isAgent", args: [addr, roleIdx] })) as [boolean, bigint];
+  if (has) return { agentId: Number(existing), role: ROLE[req.role].name, txHashes: [] as Hash[], alreadyOnboarded: true };
   const current = Number(await client.readContract({ address: c().roles, abi: autorailRolesAbi, functionName: "roleOf", args: [req.agentId] }));
   if (current !== 0) throw new OpError("AlreadyHasRole", `Agent #${req.agentId} already has a role. Register a new agent for a different role.`, 409);
 
@@ -95,7 +95,7 @@ export const DRIP_BELOW = parseEther("0.01");
 const DRIP_MAX_COUNT = Number(process.env.DRIP_MAX_COUNT || 25);
 
 /** 0.02 tQDAY once per wallet if it holds < 0.01 tQDAY. Capped by count and by the drip wallet's balance. No tUSD8. */
-export async function drip(to: Address) {
+export async function drip(to: Address, rateLimited: () => Promise<boolean> = async () => false) {
   testnetOnly();
   const client = publicClient();
   const addr = getAddress(to);
@@ -105,6 +105,8 @@ export async function drip(to: Address) {
   if ((await client.getBalance({ address: wallet.address })) < DRIP_AMOUNT + parseEther("0.001")) {
     throw new OpError("DripEmpty", "The gas drip is empty. Get tQDAY from https://faucet.qday.info/en", 503);
   }
+  // count only real drips against the caller's limit (a "you already have gas" answer is free)
+  if (await rateLimited()) throw new OpError("RateLimited", "The gas drip allows 3 wallets per network per day. Use https://faucet.qday.info/en", 429);
   const onceKey = `drip:${TARGET_CHAIN_ID}:${addr.toLowerCase()}`;
   if (!(await store.claim(onceKey, 365 * 86_400))) throw new OpError("AlreadyDripped", "This wallet already received gas from the drip. Use https://faucet.qday.info/en", 409);
   const count = await store.incr(`drip:count:${TARGET_CHAIN_ID}`, 365 * 86_400);
