@@ -81,10 +81,11 @@ Vendor agent #6 (QA_VENDOR) → Lab agent #7 (QA_LAB), receivable `0x96d3cca6…
 ## Known limits
 
 - **Production isn't onchain yet**: it needs the env vars below and a redeploy from this branch (or after merging). Until then it serves M1 in mock mode.
-- **A solo judge can't repay** an invoice to Frontier Lab: our lab agent auto-confirms, but paying needs a Lab wallet with tUSD8 (a second wallet onboarded as Lab, or tUSD8 from the faucet). An opt-in, capped "Frontier Lab pays" route would close the loop; not built (it spends our tUSD8).
-- **Drip budget**: the drip wallet holds 0.08 tQDAY = 4 more drips. `DRIP_MAX_COUNT` is 25; top it up from recycled balances before judging.
+- ~~A solo judge can't repay~~ **Closed in M2.5**: "Frontier Lab auto-pays" settles an onboarded vendor's Funded invoice to our lab (≤ 0.10 tUSD8) about 60 s after funding, capped at 10/day globally and 2/day per vendor. Each auto-paid invoice costs the lab treasury the invoice amount: the vault gets its principal back plus the fee, and the judge's vendor wallet ends up with the advance (if unspent) plus the remainder, ≈ the invoice amount minus the fee. The treasury (0.40 tUSD8 after the M2.5 top-up) keeps a 0.10 reserve for "Run live", so 3 auto-pays fit before `pnpm ops:topup` is needed; `/api/health` shows `reserves.autoPaysFundedByTreasury`.
+- **Auto-pay timing on Vercel Hobby**: the Vendor screen drives the ~60 s auto-pay while it's open. If the vendor closes the tab, the safety-net sweep (`GET /api/lab/settle`) runs from Vercel Cron once a day on Hobby (Hobby only allows daily crons). On Pro, change `web/vercel.json` to `*/2 * * * *`. Any later visit to that invoice also triggers it.
+- **Drip budget**: 1.0 tQDAY after the top-up = 50 drips; the daily cap (`CAP_DRIP_DAILY`, default 25) and 3 per IP per day apply.
 - **Lighthouse `/app`** performance 74 (mobile): wagmi/RainbowKit and the live indexer on first load. Landing ≥ 95.
-- **Rate limits are per IP**: judges behind one venue NAT share 5 onboardings/h and 3 drips/day per IP. Raise them via the constants in the routes if needed.
+- **Rate limits are per IP**: judges behind one venue NAT share 5 onboardings/h, 3 drips/day and 1 "Run live"/h per IP. Global daily caps (`CAP_*`) bound total spend; `DEMO_PAUSED=true` stops every spending route.
 - The QA scripts simulate one client IP per run (TEST-NET 203.0.113.x in `x-vercel-forwarded-for`) against the local server; Vercel overwrites that header in production.
 - QA leftovers on Aevum: four unfunded QA invoices (INV-004/005/007/008: Created or Confirmed). Harmless; nothing is owed. The one funded leftover (INV-006 from the interrupted run 1) was repaid ([0xa3f6c71e…](https://explorer-test.qday.info/tx/0xa3f6c71e1c1d902ca288a7ae4c70cbbe16ed2971f3f5d3c24f8d26a08178c0cb)).
 

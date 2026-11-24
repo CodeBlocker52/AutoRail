@@ -11,7 +11,7 @@ Test wallets: import the burners from `docs/QA_KEYS_FOR_METAMASK.md` (git-ignore
 | QA_LAB | Lab (already onboarded as a Buyer, tier 1) | ~0.1 tUSD8, ~0.1 tQDAY |
 | A brand-new MetaMask account | "Judge" onboarding | nothing |
 
-Keep amounts tiny (0.05–0.10 tUSD8). Before you start, open `/api/health`: `status` should be `ok`, `kv.ok` true, and every wallet `low: false`.
+Keep amounts tiny (0.05–0.10 tUSD8). Before you start, open `/api/health`: `status` should be `ok`, `kv.ok` true, every wallet `low: false`, `paused` false, and `limits.caps.autoPay.remaining` / `reserves.autoPaysFundedByTreasury` above 0.
 
 For every step, fill in **Actual / screenshot / tx hash**. ✅ = matches the expected result.
 
@@ -46,13 +46,13 @@ For every step, fill in **Actual / screenshot / tx hash**. ✅ = matches the exp
 | # | Step | Expected | Actual / screenshot / tx | ✅ |
 |---|---|---|---|---|
 | 2.1 | `/app/vendor` | No "This wallet isn't a vendor yet" banner (already onboarded) | | ☐ |
-| 2.2 | Create invoice 0.10 to **#1 · Frontier Lab**, attach any PDF | "keccak256 … · from file"; tx confirms; then "Frontier Lab is reviewing…" → "Frontier Lab confirmed it" with a tx link | | ☐ |
+| 2.2 | Create invoice 0.10 to **#1 · Frontier Lab** (QA_VENDOR has 2 auto-pays per day), attach any PDF | "keccak256 … · from file"; tx confirms; then "Frontier Lab is reviewing…" → "Frontier Lab confirmed it" with a tx link | | ☐ |
 | 2.3 | Advance offer card | Band, 75% advance (0.075), fee, plain-English explanation | | ☐ |
 | 2.4 | **Accept and fund advance** | One tx; invoice → Funded; a JobWallet address appears | | ☐ |
 | 2.5 | Open the invoice → Grant session to the payout agent (cap 0.03, total 0.07, 24h) | SessionGranted; session card shows caps and expiry | | ☐ |
 | 2.6 | On the invoice, "Send a payment" 0.01 to an address that is **not** an approved payee (e.g. `0x3a01A37ee421C1485726B361F401cfc2C08Be03f`) | Refused before signing with "This payee isn't on the job's approved list." (the owner is limited to approved payees; caps apply to session keys, see 5.3) | | ☐ |
 | 2.7 | Revoke the session | SessionKeyRevoked; card shows "Revoked" | | ☐ |
-| 2.8 | Create a 0.25 invoice to Frontier Lab | Created, but "Frontier Lab didn't auto-confirm: … up to 0.20 tUSD8 only." | | ☐ |
+| 2.8 | Create a 0.25 invoice to Frontier Lab | Created, but "Frontier Lab didn't auto-confirm: … up to 0.10 tUSD8 only." | | ☐ |
 
 ## 3 · Lab (QA_LAB)
 
@@ -76,7 +76,9 @@ Ask QA_VENDOR (or yourself in another browser profile) to create a 0.10 invoice 
 | 4.4 | Click it again | "This wallet already has enough tQDAY" / "already received gas" | | ☐ |
 | 4.5 | Choose **Vendor**, name it, **Register agent** | One tx; "Agent #N registered" | | ☐ |
 | 4.6 | **Sign and get my role** | One message signature (no gas); "Role assigned" with tx link | | ☐ |
-| 4.7 | Go to the Vendor screen; create a 0.05 invoice to Frontier Lab | Auto-confirmed by Frontier Lab; an offer appears; accept → Funded | | ☐ |
+| 4.7 | Go to the Vendor screen; pick #1 Frontier Lab | Note under the buyer: "Demo: Frontier Lab pays automatically within ~1 min (testnet, capped)." | | ☐ |
+| 4.7b | Create a 0.05 invoice to Frontier Lab | Auto-confirmed by Frontier Lab; an offer appears; accept → Funded | | ☐ |
+| 4.7c | Wait on the Vendor screen | "Frontier Lab pays this invoice automatically in about N s" → "Frontier Lab paid 0.05 tUSD8 … reputation got a 100" with a tx link; "View the waterfall →" shows lenders-first repayment | | ☐ |
 | 4.8 | Reload onboarding | Step 4 "You're in"; "agent #N ✓" on the Vendor card | | ☐ |
 
 ## 5 · Agents · Run live (any wallet, no signature needed)

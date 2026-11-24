@@ -100,7 +100,9 @@ Addresses and ABIs are **generated**, never typed by hand: `scripts/sync-deploym
 | `/api/health` | GET | – | Status (`ok`/`degraded`/`down`), mode, chain, latest block + RPC latency, contract addresses, deploy block, deployment and app commits, KV backend + ping, feature flags, and the tQDAY balance of every server wallet (relayer, payout agent, lab agent, roles operator, drip, demo seller/lender) with a warning threshold. No secrets. Cached 15 s. |
 | `/api/onboard` | GET | `?address&agentId&role=vendor\|lab&issuedAt` | The exact EIP-191 message to sign. |
 | `/api/onboard` | POST | `{ address, agentId, role, issuedAt, signature }` | Self-serve onboarding: the ROLES_OPERATOR assigns **Seller** (vendor) or **Buyer + tier 1** (lab) to the caller's own role-less ERC-8004 agent. Signature ≤ 10 min old; signer must own the agent; agents that already have a role (our #0–#4) are refused; never Underwriter/Payout/Merchant; idempotent per wallet + role; 5/h per IP, 3/h per wallet. |
-| `/api/drip` | POST | `{ address }` | 0.02 tQDAY once per wallet if it holds < 0.01 (no tUSD8: [faucet](https://faucet.qday.info/en)). 3 real drips per IP per day, `DRIP_MAX_COUNT` (default 25) in total. |
+| `/api/drip` | POST | `{ address }` | 0.02 tQDAY once per wallet if it holds < 0.01 (no tUSD8: [faucet](https://faucet.qday.info/en)). 3 real drips per IP per day, `CAP_DRIP_DAILY` (default 25) per day overall. |
+| `/api/lab/settle` | POST | `{ receivableId }` | **Frontier Lab auto-pays**: for an onboarded vendor's invoice to our lab (≤ 0.10), once Funded ≥ `AUTOPAY_DELAY_SECONDS` (60): the lab signs EIP-3009 and the relayer repays through the normal relay rails. Answers `paid` / `wait {retryInSeconds}` / `already` / `skipped {code, message}`. Idempotent; 10/day globally, 2/day per vendor; keeps the lab treasury reserve. The Vendor screen polls it after funding. |
+| `/api/lab/settle` | GET | – | Sweep: pays every due auto-pay invoice (≤ 3 per call). Vercel Cron (`web/vercel.json`, daily on Hobby) with `Authorization: Bearer $CRON_SECRET`; public calls are rate-limited and only settle what's already due. |
 | `/api/lab/confirm` | POST | `{ receivableId }` | Our Frontier Lab agent (#1) confirms (EIP-712, payee = router) invoices addressed to it by **onboarded** vendors, ≤ 0.20 tUSD8. Idempotent; 10/h per IP. The Vendor screen calls it right after "Create invoice", so a solo judge can continue to the advance. |
 
 All routes: idempotency keys where they send, retry with backoff on RPC transport errors only (never on reverts), a per-account nonce manager, structured JSON logs with redaction, no keys in logs or responses.
@@ -148,11 +150,23 @@ Failure policy: idempotency claims **fail closed** (a Redis error returns an err
 | `LENDER_` / `SELLER_` / `BUYER_PRIVATE_KEY` | **server** | "Run live"; `BUYER_` is also the Frontier Lab agent that auto-confirms |
 | `ROLES_OPERATOR_PRIVATE_KEY` | **server** | owner of `AutorailRoles` only; assigns Seller/Buyer in `/api/onboard` (see `docs/ROLES_OPERATOR.md`) |
 | `DRIP_PRIVATE_KEY` | **server** | capped tQDAY gas drip (`/api/drip`) |
-| `DRIP_MAX_COUNT` | server | optional total drip cap (default 25) |
+| `CRON_SECRET` | **server** | bearer for the Vercel Cron auto-pay sweep |
+| `DEMO_PAUSED`, `CAP_*`, `AUTOPAY_DELAY_SECONDS`, `LAB_TREASURY_RESERVE`, `LIQUIDITY_RESERVE` | server | kill switch, daily caps, auto-pay delay and reserves (see "Caps and kill switch") |
 | `AUTORAIL_RPC_URL` | server | optional RPC override |
 | `KV_REST_API_URL`, `KV_REST_API_TOKEN` (or `UPSTASH_REDIS_REST_*`) | server | optional shared store |
 
 **Never prefix a key with `NEXT_PUBLIC_`.** On Vercel, mark the key variables *Sensitive*. Server modules import `server-only`, so a client import fails the build.
+
+### Caps and kill switch (`lib/server/caps.ts`)
+
+- `DEMO_PAUSED=true` turns every spending route (onboard, drip, lab confirm/settle, relay, payout agent, Run live) into 503 "The live demo is paused…". Reads, Demo data and the recorded run keep working.
+- Global daily caps (UTC day, Upstash, chain-scoped): onboardings 40, drips 25, auto-confirms 30, auto-pays 10 (2 per vendor), Run live 6; Run live is also limited to 1 per IP per hour. All `CAP_*` env-configurable. A slot is given back when the action then fails.
+- Reserves: onboarded vendors can't take the vault's idle liquidity below `LIQUIDITY_RESERVE` (0.075, one Run-live advance; our demo seller is exempt), and auto-pay never spends the lab treasury below `LAB_TREASURY_RESERVE` (0.10, one Run-live payment).
+- `/api/health` shows `paused`, `limits.caps.{name}.{limit,used,remaining}` and `reserves` (vault idle, available to onboarded vendors, lab treasury, auto-pays the treasury can fund).
+
+### Ops: `pnpm ops:topup`
+
+Local only (reads the deployer key from `contracts/.env`). Dry run by default; `--execute` sends. Tops up tQDAY from the deployer (drip → 1.0; relayer, payout agent, lab, roles operator, underwriter → 0.5) and recycles spare tUSD8 from receive-only demo accounts (annotators, merchant, demo seller) into the lab treasury (`--treasury`, default 0.40) and the demo lender (`--lender`, default 0.20) under a hard budget (`--max-tusd8`, default 0.6). Prints balances before and after.
 
 ### QA scripts
 
@@ -171,7 +185,7 @@ make deal TO=<lender> AMOUNT=5 && make deal TO=<buyer> AMOUNT=5
 cd ../web && SYNC_INCLUDE_FORK=1 pnpm sync && pnpm test:e2e
 ```
 
-Suites: `e2e/fork.spec.ts` (full cycle), `e2e/drills.spec.ts` (double-click → one tx, wrong network → switch prompt and no wallet prompt, insufficient tUSD8 / tQDAY → plain-English message before signing, rejected signature → "You cancelled the signature.", pending tx survives navigation), `e2e/onboard.spec.ts` (fresh wallet: drip → register → Seller → Frontier Lab auto-confirms). For onboarding on the fork, give the fork's `AutorailRoles` to the operator first: `RPC=http://127.0.0.1:8555 scripts/roles-ownership.sh to-operator && … accept-operator` (fund the operator and drip wallets with `cast rpc anvil_setBalance`). The test wallet has drill switches (`__AUTORAIL_TEST_REJECT__`, `__AUTORAIL_TEST_CHAIN_ID__`) and only exists on 440050.
+Suites: `e2e/judge.spec.ts` (**one fresh wallet**: onboard → invoice to Frontier Lab → auto-confirmed → funded → auto-paid → Repaid with feedback 100; run the e2e server with `AUTOPAY_DELAY_SECONDS=8`), `e2e/fork.spec.ts` (full cycle), `e2e/drills.spec.ts` (double-click → one tx, wrong network → switch prompt and no wallet prompt, insufficient tUSD8 / tQDAY → plain-English message before signing, rejected signature → "You cancelled the signature.", pending tx survives navigation), `e2e/onboard.spec.ts` (fresh wallet: drip → register → Seller → Frontier Lab auto-confirms). For onboarding on the fork, give the fork's `AutorailRoles` to the operator first: `RPC=http://127.0.0.1:8555 scripts/roles-ownership.sh to-operator && … accept-operator` (fund the operator and drip wallets with `cast rpc anvil_setBalance`). The test wallet has drill switches (`__AUTORAIL_TEST_REJECT__`, `__AUTORAIL_TEST_CHAIN_ID__`) and only exists on 440050.
 
 `e2e/fork.spec.ts` drives the real UI as lender → vendor → lab → vendor → lab: deposit with permit, create invoice, EIP-712 confirm, accept the signed offer, gasless pay, then checks the invoice is Repaid. Each role is a separate browser context whose key is injected with `addInitScript` (`window.__AUTORAIL_TEST_KEY__`, read from `contracts/.env` at test time). The test-key connector (`lib/testConnector.ts`) only exists when the target chain is 440050, so it can't touch Aevum. Set `E2E_SHOTS_DIR` to save screenshots.
 
