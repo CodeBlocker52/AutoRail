@@ -47,7 +47,7 @@ export function LendView() {
             </Button>
             <p className="text-[12.5px] text-muted">One signature (permit) and one transaction. No separate approve.</p>
             <TxStatus stage={depTx.stage} hash={depTx.hash} error={depTx.error} onDismiss={depTx.reset} labels={{ signing: "Sign permit" }} />
-            <FaucetHint balances={bal} />
+            <FaucetHint balances={bal} needed={depV} />
           </form>
         </Card>
         <Card>
@@ -73,7 +73,7 @@ export function LendView() {
             <dl className="space-y-4">
               <div>
                 <dt className="text-[13px] text-muted">Value</dt>
-                <dd className="mt-1 font-mono text-[30px] leading-none text-ink">
+                <dd className="mt-1 font-mono text-[30px] leading-none text-ink" title="ERC-4626 rounds down by up to 0.000001.">
                   {formatAmount(pos.value)} <span className="text-[14px] text-muted">tUSD8</span>
                 </dd>
               </div>
@@ -97,7 +97,15 @@ export function LendView() {
                       est.
                     </span>
                   </dt>
-                  <dd className="font-mono text-ink">{vault ? pct(vault.estApyBps, 1) : "—"}</dd>
+                  <dd className="font-mono text-ink">
+                    {vault && vault.outstanding > 0n ? (
+                      pct(vault.estApyBps, 1)
+                    ) : (
+                      <span title="no active advances" aria-label="Not available: no active advances">
+                        —
+                      </span>
+                    )}
+                  </dd>
                   <dd className="mt-0.5 text-[11.5px] leading-snug text-muted">Active fees × 365 ÷ term ÷ assets</dd>
                 </div>
               </div>

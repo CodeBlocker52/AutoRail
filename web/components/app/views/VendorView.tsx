@@ -6,8 +6,7 @@ import { BadgeCheck, Upload } from "lucide-react";
 import type { Address, AgentRole, Hash } from "@/lib/autorail/types";
 import { formatDate, parseTokenInput, shortHash } from "@/lib/autorail/format";
 import { decodeError } from "@/lib/autorail/errors";
-import { DEPLOYMENTS } from "@/lib/autorail/generated/deployments";
-import { TARGET_CHAIN_ID } from "@/lib/chain/aevum";
+import { OUR_LAB_AGENT_ID } from "@/lib/autorail/ourAgents";
 import { OnboardCallout } from "@/components/app/OnboardCallout";
 import { useActor, useAgents, useClient, useReceivables, useTx } from "@/hooks";
 import { AddressChip, TxHashLink } from "@/components/ui/AddressChip";
@@ -21,8 +20,7 @@ import { InvoicesTable } from "@/components/autorail/InvoicesTable";
 import { AdvanceOfferCard } from "@/components/autorail/AdvanceOfferCard";
 
 const isAddr = (v: string) => /^0x[0-9a-fA-F]{40}$/.test(v);
-/** Our "Frontier Lab" buyer agent (ERC-8004 #1 on Aevum). */
-const OUR_LAB_AGENT_ID: number = (DEPLOYMENTS as unknown as Record<number, { agents: Record<string, number> }>)[TARGET_CHAIN_ID]?.agents["frontier-lab"] ?? 1;
+
 const dateInput = (d: Date) => d.toISOString().slice(0, 10);
 
 function RegisterAgentCard() {
@@ -186,6 +184,9 @@ function CreateInvoiceCard({ nextNumber }: { nextNumber: string }) {
             ))}
             <option value="custom">Other address…</option>
           </select>
+          {toOurLab && client.mode === "onchain" && (
+            <p className="mt-1.5 text-[12.5px] text-brand">Demo: Frontier Lab pays automatically within ~1 min (testnet, capped).</p>
+          )}
           {buyerSel === "custom" && (
             <input aria-label="Buyer address" className="field mt-2 font-mono !text-[13px]" placeholder="0x…" value={custom} onChange={(e) => setCustom(e.target.value.trim())} spellCheck={false} />
           )}
@@ -238,7 +239,12 @@ export function VendorView() {
   const receivables = useReceivables();
   const mine = receivables.data?.filter((r) => r.seller.toLowerCase() === vendor?.toLowerCase()) ?? [];
   const nextNumber = `INV-${String(mine.length + 1).padStart(3, "0")}`;
-  const offerFor = mine.find((r) => r.state === "Confirmed") ?? mine.find((r) => r.state === "Funded");
+  // Keep a just-repaid Frontier Lab invoice on screen for ~10 min so the vendor sees the auto-pay land.
+  const nowS = Math.floor(Date.now() / 1000);
+  const offerFor =
+    mine.find((r) => r.state === "Confirmed") ??
+    mine.find((r) => r.state === "Funded") ??
+    mine.find((r) => r.state === "Repaid" && r.buyerAgentId === OUR_LAB_AGENT_ID && !!r.repaidAt && nowS - r.repaidAt < 600);
 
   return (
     <div className="space-y-6">

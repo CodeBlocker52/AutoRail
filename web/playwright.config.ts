@@ -21,6 +21,7 @@ export default defineConfig({
       NEXT_PUBLIC_AUTORAIL_CHAIN_ID: "440050",
       NEXT_PUBLIC_FORK_RPC_URL: "http://127.0.0.1:8555",
       NEXT_DIST_DIR: ".next-e2e",
+      AUTOPAY_DELAY_SECONDS: "8", // judge.spec: Frontier Lab pays ~8 s after funding instead of 60
     },
   },
 });

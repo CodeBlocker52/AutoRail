@@ -22,6 +22,11 @@ function fakeUpstash() {
         return (alive(key)?.v as string) ?? null;
       case "SET": {
         const nx = a.map((x) => x.toUpperCase()).includes("NX");
+        if (a.map((x) => x.toUpperCase()).includes("KEEPTTL")) {
+          const e = alive(key);
+          kv.set(key, { v: a[0], exp: e?.exp ?? 0 });
+          return "OK";
+        }
         if (nx && alive(key)) return null;
         const exI = a.findIndex((x) => x.toUpperCase() === "EX");
         kv.set(key, { v: a[0], exp: exI >= 0 ? Date.now() + Number(a[exI + 1]) * 1000 : 0 });
@@ -32,6 +37,12 @@ function fakeUpstash() {
       case "INCR": {
         const e = alive(key);
         const n = Number((e?.v as string) ?? 0) + 1;
+        kv.set(key, { v: String(n), exp: e?.exp ?? 0 });
+        return n;
+      }
+      case "DECR": {
+        const e = alive(key);
+        const n = Number((e?.v as string) ?? 0) - 1;
         kv.set(key, { v: String(n), exp: e?.exp ?? 0 });
         return n;
       }
@@ -103,6 +114,15 @@ describe.each([
     const s = make();
     const key = `rl:${Math.random()}`;
     expect([await s.incr(key, 60), await s.incr(key, 60), await s.incr(key, 60)]).toEqual([1, 2, 3]);
+  });
+  it("decr gives a slot back and never goes below 0", async () => {
+    const s = make();
+    const key = `cap:${Math.random()}`;
+    await s.incr(key, 60);
+    await s.incr(key, 60);
+    expect(await s.decr(key)).toBe(1);
+    expect(await s.decr(key)).toBe(0);
+    expect(await s.decr(key)).toBe(0);
   });
   it("blocked-attempt records: one hash field per tx, no lost writes under concurrency", async () => {
     const s = make();

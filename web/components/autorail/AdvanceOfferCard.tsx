@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { TxStatus } from "@/components/ui/TxStatus";
+import { AutoPayStatus } from "./AutoPayStatus";
 
 /** Underwriter's offer (or the funded terms) with the plain-English explanation. */
 export function AdvanceOfferCard({ receivable }: { receivable: Receivable }) {
@@ -49,6 +50,11 @@ export function AdvanceOfferCard({ receivable }: { receivable: Receivable }) {
               </p>
             </div>
           </div>
+          {(receivable.state === "Funded" || receivable.state === "Repaid") && (
+            <div className="mt-4">
+              <AutoPayStatus receivable={receivable} />
+            </div>
+          )}
           {!funded && receivable.state === "Confirmed" && (
             <div className="mt-4 space-y-3">
               <Button onClick={() => tx.run((o) => client.fundAdvance(receivable.id, o))} loading={tx.isBusy}>

@@ -160,7 +160,7 @@ export function LabView() {
   return (
     <div className="space-y-6">
       <OnboardCallout role="lab" />
-      <FaucetHint balances={bal} gasless />
+      <FaucetHint balances={bal} gasless needed={toPay.reduce((m, r) => (r.amount > m ? r.amount : m), 0n) || null} />
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader title="Awaiting confirmation" eyebrow="EIP-712 · buyer agent" />

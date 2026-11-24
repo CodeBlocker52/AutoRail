@@ -142,6 +142,8 @@ async function main() {
   // ── A · health & proof ──
   const h = await api("/api/health");
   check("health", "GET /api/health → 200, chain 44005, KV ok, onchain", h.status === 200 && h.body.chainId === 44005 && (h.body.kv as { ok: boolean })?.ok === true && h.body.mode === "onchain", `status ${h.status} ${h.body.status}`);
+  const lim = h.body.limits as { paused: boolean; caps: Record<string, { limit: number; used: number; remaining: number }> } | undefined;
+  check("health", "caps, remaining counts and reserves are reported; not paused", !!lim && lim.paused === false && lim.caps.autoPay?.limit === 10 && !!h.body.reserves, lim ? `autoPay ${lim.caps.autoPay.used}/${lim.caps.autoPay.limit}, onboard ${lim.caps.onboard.used}/${lim.caps.onboard.limit}` : "missing");
   check("health", "no secrets in /api/health", !/PRIVATE|0x[0-9a-fA-F]{64}(?![0-9a-fA-F])/.test(h.text.replace(/"deploymentCommit":"[0-9a-f]+"/, "")), "no 64-hex values / key names");
   const proof = await api("/api/proof");
   let proofOk = false;
@@ -223,7 +225,7 @@ async function main() {
   };
   const big = await mkInvoice(1n, 250_000n, "over-cap");
   const bigC = await api("/api/lab/confirm", { body: { receivableId: big.id } });
-  check("labconfirm", "Frontier Lab refuses > 0.20 tUSD8", bigC.status === 403 && bigC.body.code === "OverAutoConfirmCap", `${bigC.status} ${bigC.body.code}`);
+  check("labconfirm", "Frontier Lab refuses > 0.10 tUSD8 (auto-confirm cap)", bigC.status === 403 && bigC.body.code === "OverAutoConfirmCap", `${bigC.status} ${bigC.body.code}`);
   const auto = await mkInvoice(1n, 100_000n, "auto");
   const ac = await api("/api/lab/confirm", { body: { receivableId: auto.id } });
   const autoState = Number((await read<{ state: number }>(C.registry, receivableRegistryAbi as unknown as Abi, "get", [auto.id])).state);
@@ -240,6 +242,30 @@ async function main() {
     const o = { ...offer, advanceAmount: BigInt(offer.advanceAmount), offerExpiry: BigInt(offer.offerExpiry), nonce: BigInt(offer.nonce) };
     const nonSeller = await revertName(lab.address, { address: C.facility, abi: creditFacilityAbi as unknown as Abi, functionName: "fund", args: [o, uwAuto.body.signature] });
     check("underwrite", "the signed offer can't be used by a non-seller (fund reverts NotSeller)", nonSeller === "NotSeller", nonSeller);
+
+    // ── Frontier Lab auto-pays: vendor funds the auto-confirmed invoice; the lab repays via the relay rails ──
+    const early = await api("/api/lab/settle", { body: { receivableId: auto.id } });
+    check("autopay", "not funded yet → skipped with a clear message", early.status === 200 && early.body.status === "skipped" && early.body.code === "NotFunded", `${early.body.status} ${early.body.code}`);
+    const frc = await send(vendor, { address: C.facility, abi: creditFacilityAbi as unknown as Abi, functionName: "fund", args: [o, uwAuto.body.signature] });
+    step("A1 Vendor funds the auto-confirmed Frontier Lab invoice", "QA_VENDOR", "Funded", frc.transactionHash);
+    const first = await api("/api/lab/settle", { body: { receivableId: auto.id } });
+    check("autopay", "right after funding → wait with a countdown", first.body.status === "wait" && Number(first.body.retryInSeconds) > 0, `${first.body.status} retryIn ${first.body.retryInSeconds}`);
+    let settled: Record<string, unknown> = first.body;
+    for (let i = 0; i < 20 && settled.status === "wait"; i++) {
+      await sleep(Math.max(3, Number(settled.retryInSeconds ?? 10)) * 1000);
+      settled = (await api("/api/lab/settle", { body: { receivableId: auto.id } })).body;
+    }
+    let fb100 = false;
+    if (settled.status === "paid") {
+      const rc = await pc.getTransactionReceipt({ hash: settled.txHash as Hash });
+      fb100 = events(rc, reputationRegistryAbi as unknown as Abi, C.reputation).some((e) => e.eventName === "NewFeedback" && BigInt(e.args.agentId as bigint) === v.agentId && BigInt(e.args.value as bigint) === 100n);
+    }
+    check("autopay", "Frontier Lab auto-pays ~60 s after funding: Repaid + NewFeedback 100 for the vendor", settled.status === "paid" && fb100, `${settled.status} ${settled.code ?? ""} feedback100=${fb100}`, settled.txHash as string);
+    step("A2 Frontier Lab auto-pays (EIP-3009 via /api/relay)", "BUYER (lab treasury) + RELAYER", "Repaid; NewFeedback 100 for the vendor", settled.txHash as string);
+    const again = await api("/api/lab/settle", { body: { receivableId: auto.id } });
+    check("autopay", "idempotent: settling again → already", again.body.status === "already", String(again.body.status));
+    const sweep = await api("/api/lab/settle");
+    check("autopay", "GET sweep answers (nothing left to pay)", sweep.status === 200 && typeof sweep.body.checked === "number", `checked ${sweep.body.checked} paid ${sweep.body.paid}`);
   }
 
   // ── F · main cycle: QA_VENDOR → QA_LAB, 0.10 tUSD8 ──
