@@ -4,6 +4,7 @@ import { decodeError } from "@/lib/autorail/errors";
 import { ServerConfigError } from "./env";
 import { OpError } from "./ops";
 import { log } from "./log";
+import { CapError } from "./caps";
 
 export const json = (body: unknown, status = 200) =>
   new NextResponse(JSON.stringify(body, (_k, v) => (typeof v === "bigint" ? v.toString() : v)), {
@@ -13,6 +14,10 @@ export const json = (body: unknown, status = 200) =>
 
 /** Errors → `{ code, message, txHash? }`. Never includes stack traces or keys. */
 export function fail(e: unknown, route: string) {
+  if (e instanceof CapError) {
+    log("warn", `${route}.capped`, { code: e.code });
+    return json({ code: e.code, message: e.message }, e.code === "Paused" ? 503 : 429);
+  }
   if (e instanceof OpError) {
     log("warn", `${route}.refused`, { code: e.code, txHash: e.txHash });
     return json({ code: e.code, message: e.message, txHash: e.txHash }, e.status);

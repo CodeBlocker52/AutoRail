@@ -4,6 +4,8 @@ import { relay } from "@/lib/server/ops";
 import { clientIp, limited } from "@/lib/server/store";
 import { account } from "@/lib/server/env";
 
+import { assertNotPaused } from "@/lib/server/caps";
+
 export const runtime = "nodejs";
 
 /** GET: is gasless payment available? */
@@ -18,6 +20,7 @@ export async function GET() {
  */
 export async function POST(req: Request) {
   try {
+    assertNotPaused();
     if (await limited(`relay:ip:${clientIp(req)}`, 10)) return json({ code: "RateLimited", message: "Too many requests. Wait a minute." }, 429);
     const b = (await req.json()) as Record<string, unknown>;
     if (!isHex32(b.receivableId) || !isAddr(b.from) || !isUint(b.value) || !isUint(b.validAfter) || !isUint(b.validBefore) || !isHex32(b.nonce) || !(typeof b.signature === "string" && isHex(b.signature))) {

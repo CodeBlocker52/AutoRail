@@ -1,6 +1,6 @@
 import "server-only";
-import { formatEther, getAddress, parseEther, zeroAddress, type Address, type Hash, type Hex } from "viem";
-import { autorailRolesAbi, identityRegistryAbi, receivableRegistryAbi } from "@/lib/autorail/generated/abis";
+import { formatEther, formatUnits, getAddress, parseEther, zeroAddress, type Address, type Hash, type Hex } from "viem";
+import { autorailRolesAbi, autorailVaultAbi, identityRegistryAbi, receivableRegistryAbi } from "@/lib/autorail/generated/abis";
 import { AEVUM_CHAIN_ID, AEVUM_FORK_CHAIN_ID, TARGET_CHAIN_ID } from "@/lib/chain/aevum";
 import { stateName } from "@/lib/autorail/mapping";
 import { CONFIRMATION_TYPES } from "@/lib/autorail/tokenDomain";
@@ -9,8 +9,13 @@ import { deployment, publicClient, send, sendValue, simulate } from "./chain";
 import { OpError } from "./ops";
 import { store } from "./store";
 import { log } from "./log";
+import { assertNotPaused, isPaused, takeDaily, usage } from "./caps";
+import { liquidityReserve } from "./ops";
+import { AUTO_PAY_MAX } from "./autopayRules";
+import { autoPayDelaySeconds, labTreasuryReserve } from "./autopay";
 
 const c = () => deployment().contracts as Record<string, Address>;
+const ERC20_BAL = [{ type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }] }] as const;
 const ROLE = { vendor: { name: "Seller", index: 1 }, lab: { name: "Buyer", index: 2 } } as const;
 export type OnboardRole = keyof typeof ROLE;
 
@@ -47,6 +52,7 @@ export interface OnboardRequest {
  */
 export async function onboard(req: OnboardRequest) {
   testnetOnly();
+  assertNotPaused();
   const client = publicClient();
   const addr = getAddress(req.address);
   const roleIdx = ROLE[req.role].index;
@@ -67,7 +73,9 @@ export async function onboard(req: OnboardRequest) {
   if (current !== 0) throw new OpError("AlreadyHasRole", `Agent #${req.agentId} already has a role. Register a new agent for a different role.`, 409);
 
   if (!(await store.claim(`onboard:inflight:${TARGET_CHAIN_ID}:${req.agentId}`, 180))) throw new OpError("InFlight", "This agent is already being onboarded.", 409);
+  let slot: { release: () => Promise<void> } | null = null;
   try {
+    slot = await takeDaily(store, TARGET_CHAIN_ID, "onboard");
     const operator = requireAccount("ROLES_OPERATOR_PRIVATE_KEY");
     const hashes: Hash[] = [];
     const setRole = { address: c().roles, abi: autorailRolesAbi, functionName: "setRole", args: [req.agentId, roleIdx] } as const;
@@ -83,6 +91,9 @@ export async function onboard(req: OnboardRequest) {
     await store.set(`onboarded:${TARGET_CHAIN_ID}:${req.agentId}`, { address: addr, role: req.role, at: Date.now(), txHashes: hashes }, 365 * 86_400);
     log("info", "onboard", { agentId: String(req.agentId), role: req.role, address: addr, txs: hashes.length });
     return { agentId: Number(req.agentId), role: ROLE[req.role].name, txHashes: hashes, alreadyOnboarded: false };
+  } catch (e) {
+    if (slot) await slot.release();
+    throw e;
   } finally {
     await store.del(`onboard:inflight:${TARGET_CHAIN_ID}:${req.agentId}`);
   }
@@ -92,11 +103,11 @@ export async function onboard(req: OnboardRequest) {
 
 export const DRIP_AMOUNT = parseEther("0.02");
 export const DRIP_BELOW = parseEther("0.01");
-const DRIP_MAX_COUNT = Number(process.env.DRIP_MAX_COUNT || 25);
 
 /** 0.02 tQDAY once per wallet if it holds < 0.01 tQDAY. Capped by count and by the drip wallet's balance. No tUSD8. */
 export async function drip(to: Address, rateLimited: () => Promise<boolean> = async () => false) {
   testnetOnly();
+  assertNotPaused();
   const client = publicClient();
   const addr = getAddress(to);
   const bal = await client.getBalance({ address: addr });
@@ -109,24 +120,27 @@ export async function drip(to: Address, rateLimited: () => Promise<boolean> = as
   if (await rateLimited()) throw new OpError("RateLimited", "The gas drip allows 3 wallets per network per day. Use https://faucet.qday.info/en", 429);
   const onceKey = `drip:${TARGET_CHAIN_ID}:${addr.toLowerCase()}`;
   if (!(await store.claim(onceKey, 365 * 86_400))) throw new OpError("AlreadyDripped", "This wallet already received gas from the drip. Use https://faucet.qday.info/en", 409);
-  const count = await store.incr(`drip:count:${TARGET_CHAIN_ID}`, 365 * 86_400);
-  if (count > DRIP_MAX_COUNT) {
+  let slot: { release: () => Promise<void> };
+  try {
+    slot = await takeDaily(store, TARGET_CHAIN_ID, "drip");
+  } catch (e) {
     await store.del(onceKey);
-    throw new OpError("DripCapReached", "The gas drip has reached its cap. Get tQDAY from https://faucet.qday.info/en", 503);
+    throw e;
   }
   try {
     const sent = await sendValue(wallet, addr, DRIP_AMOUNT);
-    log("info", "drip", { to: addr, hash: sent.hash, count });
+    log("info", "drip", { to: addr, hash: sent.hash });
     return { dripped: true, amount: formatEther(DRIP_AMOUNT), hash: sent.hash, block: sent.block };
   } catch (e) {
     await store.del(onceKey); // allow a retry after a failed send
+    await slot.release();
     throw e;
   }
 }
 
 // ─────────────────────────── lab agent auto-confirm ───────────────────────────
 
-export const AUTO_CONFIRM_MAX = 200_000n; // 0.20 tUSD8
+export const AUTO_CONFIRM_MAX = 100_000n; // 0.10 tUSD8 (same as the auto-pay cap)
 
 /**
  * Our "Frontier Lab" buyer agent confirms (EIP-712, payee = router) invoices addressed to it by ONBOARDED vendors, up to
@@ -134,6 +148,7 @@ export const AUTO_CONFIRM_MAX = 200_000n; // 0.20 tUSD8
  */
 export async function labAutoConfirm(receivableId: Hex) {
   testnetOnly();
+  assertNotPaused();
   const client = publicClient();
   const d = deployment();
   const r = (await client.readContract({ address: c().registry, abi: receivableRegistryAbi, functionName: "get", args: [receivableId] }).catch(() => null)) as
@@ -144,12 +159,14 @@ export async function labAutoConfirm(receivableId: Hex) {
   if (state !== "Created") return { confirmed: true, state, txHash: null as Hash | null, already: true };
   const lab = BigInt(d.agents["frontier-lab"]);
   if (r.buyerAgentId !== lab) throw new OpError("NotOurLab", "Only invoices addressed to the Frontier Lab agent are auto-confirmed.", 403);
-  if (r.amount > AUTO_CONFIRM_MAX) throw new OpError("OverAutoConfirmCap", "Frontier Lab auto-confirms invoices up to 0.20 tUSD8 only.", 403);
+  if (r.amount > AUTO_CONFIRM_MAX) throw new OpError("OverAutoConfirmCap", "Frontier Lab auto-confirms invoices up to 0.10 tUSD8 only.", 403);
   const onboarded = await store.get<{ role: string }>(`onboarded:${TARGET_CHAIN_ID}:${r.sellerAgentId}`);
   if (!onboarded || onboarded.role !== "vendor") throw new OpError("SellerNotOnboarded", "Auto-confirm is for vendors onboarded through the app.", 403);
 
   if (!(await store.claim(`labconfirm:${TARGET_CHAIN_ID}:${receivableId}`, 300))) throw new OpError("InFlight", "This invoice is already being confirmed.", 409);
+  let slot: { release: () => Promise<void> } | null = null;
   try {
+    slot = await takeDaily(store, TARGET_CHAIN_ID, "autoConfirm");
     const buyer = requireAccount("BUYER_PRIVATE_KEY");
     const nonce = (await client.readContract({ address: c().registry, abi: receivableRegistryAbi, functionName: "nonces", args: [buyer.address] })) as bigint;
     const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
@@ -165,6 +182,9 @@ export async function labAutoConfirm(receivableId: Hex) {
     if (sent.status !== "success") throw new OpError(sent.errorName ?? "Reverted", "Confirmation reverted.", 500, sent.hash);
     log("info", "lab.autoconfirm", { receivableId, hash: sent.hash });
     return { confirmed: true, state: "Confirmed", txHash: sent.hash, already: false };
+  } catch (e) {
+    if (slot) await slot.release();
+    throw e;
   } finally {
     await store.del(`labconfirm:${TARGET_CHAIN_ID}:${receivableId}`);
   }
@@ -222,6 +242,29 @@ export async function health() {
       ownsRoles = owner ? getAddress(owner) === op.address : null;
     }
   }
+  // caps, kill switch and reserves
+  const capUsage = await usage(store, TARGET_CHAIN_ID).catch(() => null);
+  let reserves: Record<string, string | number> | null = null;
+  if (latestBlock !== null) {
+    try {
+      const idle = (await client.readContract({ address: c().vault, abi: autorailVaultAbi, functionName: "idle" })) as bigint;
+      const lab = account("BUYER_PRIVATE_KEY");
+      const treasury = lab ? ((await client.readContract({ address: d.tUSD8, abi: ERC20_BAL, functionName: "balanceOf", args: [lab.address] })) as bigint) : 0n;
+      const spare = treasury - labTreasuryReserve();
+      reserves = {
+        vaultIdle: formatUnits(idle, 6),
+        liquidityReserve: formatUnits(liquidityReserve(), 6),
+        vaultAvailableForOnboardedVendors: formatUnits(idle > liquidityReserve() ? idle - liquidityReserve() : 0n, 6),
+        labTreasury: formatUnits(treasury, 6),
+        labTreasuryReserve: formatUnits(labTreasuryReserve(), 6),
+        autoPaysFundedByTreasury: spare > 0n ? Number(spare / AUTO_PAY_MAX) : 0,
+        autoPayMax: formatUnits(AUTO_PAY_MAX, 6),
+        autoPayDelaySeconds: autoPayDelaySeconds(),
+      };
+    } catch {
+      /* reserves unavailable */
+    }
+  }
   const lows = Object.entries(wallets).filter(([, w]) => "low" in w && w.low).map(([k]) => k);
   const status = latestBlock === null ? "down" : !kv.ok || lows.length || ownsRoles === false ? "degraded" : "ok";
   const value = {
@@ -242,15 +285,21 @@ export async function health() {
       onboarding: !!account("ROLES_OPERATOR_PRIVATE_KEY") && ownsRoles !== false,
       drip: !!account("DRIP_PRIVATE_KEY"),
       labAutoConfirm: !!account("BUYER_PRIVATE_KEY"),
+      labAutoPay: !!account("BUYER_PRIVATE_KEY") && !!account("RELAYER_PRIVATE_KEY"),
       runLive: ["LENDER_PRIVATE_KEY", "SELLER_PRIVATE_KEY", "BUYER_PRIVATE_KEY"].every((k) => !!account(k as never)),
     },
     rolesOperatorOwnsRoles: ownsRoles,
+    paused: isPaused(),
+    limits: capUsage,
+    reserves,
     wallets,
     warnings: [
       ...lows.map((k) => `${k} is below its tQDAY threshold`),
       ...(kv.ok ? [] : ["shared store unavailable"]),
       ...(kv.backend === "memory" && process.env.VERCEL ? ["KV_REST_API_URL / KV_REST_API_TOKEN not set: idempotency and rate limits are per instance"] : []),
       ...(ownsRoles === false ? ["ROLES_OPERATOR does not own AutorailRoles: onboarding will fail"] : []),
+      ...(isPaused() ? ["DEMO_PAUSED: spending routes are paused"] : []),
+      ...(reserves && reserves.autoPaysFundedByTreasury === 0 ? ["lab treasury at its reserve: auto-pay is skipping (run scripts/ops/topup.ts)"] : []),
     ],
     checkedAt: new Date().toISOString(),
   };

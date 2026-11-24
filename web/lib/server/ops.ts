@@ -1,7 +1,7 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 import { decodeEventLog, getAddress, parseSignature, type Abi, type Address, type Hash, type Hex } from "viem";
-import { creditFacilityAbi, jobWalletAbi, jobWalletFactoryAbi, receivableRegistryAbi, repaymentRouterAbi } from "@/lib/autorail/generated/abis";
+import { autorailVaultAbi, creditFacilityAbi, jobWalletAbi, jobWalletFactoryAbi, receivableRegistryAbi, repaymentRouterAbi } from "@/lib/autorail/generated/abis";
 import { ADDRESS_LABELS, DEMO_ADDRESSES } from "@/lib/autorail/generated/labels";
 import { buildQuote, OFFER_TYPES, type Offer } from "@/lib/autorail/underwriting";
 import { stateName } from "@/lib/autorail/mapping";
@@ -93,12 +93,20 @@ export async function relay(req: RelayRequest, onHash?: (h: Hash) => void | Prom
 export async function underwrite(receivableId: Hex, targetAdvanceBps = 7_500) {
   const c = contracts();
   const client = publicClient();
-  const r = (await client.readContract({ address: c.registry, abi: receivableRegistryAbi, functionName: "get", args: [receivableId] })) as { state: number };
+  const r = (await client.readContract({ address: c.registry, abi: receivableRegistryAbi, functionName: "get", args: [receivableId] })) as { state: number; sellerAgentId: bigint };
   const state = stateName(r.state);
   if (state === "Created") throw new OpError("NotConfirmed", "The buyer hasn't confirmed this invoice yet.");
   if (state !== "Confirmed") throw new OpError("InvalidState", `This invoice is already ${state}.`);
   const q = await buildQuote(client, { registry: c.registry, facility: c.facility, roles: c.roles, reputation: c.reputation, router: c.router }, receivableId, approvedPayees(), targetAdvanceBps);
   if (q.offer.advanceAmount === 0n) throw new OpError("AdvanceTooHigh", q.explanation);
+  // Liquidity reserve: app-onboarded vendors can never take the vault below what one "Run live" cycle needs.
+  // Our own demo seller (the live run itself) is exempt.
+  if (r.sellerAgentId !== BigInt(deployment().agents["lumen-data"])) {
+    const idle = (await client.readContract({ address: c.vault, abi: autorailVaultAbi, functionName: "idle" })) as bigint;
+    if (idle - q.offer.advanceAmount < liquidityReserve()) {
+      throw new OpError("LiquidityReserve", "The demo vault is holding its reserve right now, so it can't fund this advance. Try a smaller invoice, or try again after lenders deposit.", 409);
+    }
+  }
   const signer = requireAccount("UNDERWRITER_PRIVATE_KEY");
   const signature = await signer.signTypedData({
     domain: { name: "Autorail CreditFacility", version: "1", chainId: TARGET_CHAIN_ID, verifyingContract: c.facility },
@@ -109,6 +117,9 @@ export async function underwrite(receivableId: Hex, targetAdvanceBps = 7_500) {
   log("info", "underwrite", { receivableId, band: q.band, advance: q.offer.advanceAmount });
   return { ...q, signature, underwriter: signer.address };
 }
+
+/** tUSD8 (6 decimals) the vault keeps idle for one "Run live" advance (live profile: 0.075). */
+export const liquidityReserve = () => BigInt(process.env.LIQUIDITY_RESERVE ?? 75_000);
 
 export function offerArgs(o: Offer) {
   return [{ ...o, feeBps: o.feeBps }] as const;

@@ -1,6 +1,8 @@
 import { json, fail } from "@/lib/server/http";
 import { getRun, LIVE_STEPS, preflight, runStep, startRun } from "@/lib/server/liveDemo";
-import { clientIp, limited } from "@/lib/server/store";
+import { clientIp, limited, store } from "@/lib/server/store";
+import { assertNotPaused, limits, takeDaily, takeHourly } from "@/lib/server/caps";
+import { TARGET_CHAIN_ID } from "@/lib/chain/aevum";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -31,12 +33,16 @@ export async function POST(req: Request) {
     const ip = clientIp(req);
     if (b.action === "preflight") return json(await preflight());
     if (b.action === "start") {
-      if (await limited(`live:start:${ip}`, 3, 600)) return json({ code: "RateLimited", message: "Only 3 live runs per 10 minutes." }, 429);
+      assertNotPaused();
+      const l = limits();
+      await takeHourly(store, TARGET_CHAIN_ID, "runLive", ip, l.runLivePerIpHour, `Live runs are limited to ${l.runLivePerIpHour} per hour per network. Replay the recorded run meanwhile.`);
       const pf = await preflight();
       if (!pf.ok) return json({ code: "Preflight", message: pf.problems.join(" "), preflight: pf }, 409);
+      await takeDaily(store, TARGET_CHAIN_ID, "runLive");
       return json(await startRun());
     }
     if (b.action === "step") {
+      assertNotPaused();
       if (typeof b.runId !== "string" || typeof b.step !== "string") return json({ code: "BadRequest", message: "runId and step are required." }, 400);
       if (await limited(`live:step:${ip}`, 40, 60)) return json({ code: "RateLimited", message: "Slow down." }, 429);
       return json(await runStep(b.runId, b.step));

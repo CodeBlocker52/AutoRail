@@ -26,6 +26,8 @@ export interface KV {
   del(key: string): Promise<void>;
   /** Atomic INCR; the TTL is applied in the same round trip. */
   incr(key: string, ttlSeconds: number): Promise<number>;
+  /** Give a slot back (e.g. a capped action that failed after counting). Never goes below 0. */
+  decr(key: string): Promise<number>;
   /** Hash field write (one record per field, so concurrent writers never overwrite each other). */
   hset(key: string, field: string, value: unknown, ttlSeconds?: number): Promise<void>;
   hvals<T>(key: string): Promise<T[]>;
@@ -53,6 +55,11 @@ export function upstashStore(redis: Redis): KV {
     async incr(key, ttlSeconds) {
       const [n] = await redis.multi().incr(key).expire(key, ttlSeconds).exec<[number, number]>();
       return Number(n);
+    },
+    async decr(key) {
+      const n = Number(await redis.decr(key));
+      if (n < 0) await redis.set(key, "0", { keepTtl: true });
+      return Math.max(0, n);
     },
     async hset(key, field, value, ttlSeconds = 0) {
       const tx = redis.multi().hset(key, { [field]: enc(value) });
@@ -93,6 +100,13 @@ export function memoryStore(): KV {
       const n = (hit && live(hit.exp) ? Number(hit.v) : 0) + 1;
       // keep the original expiry: the window doesn't slide on every hit
       mem.set(key, { v: String(n), exp: hit && live(hit.exp) && hit.exp ? hit.exp : Date.now() + ttlSeconds * 1000 });
+      return n;
+    },
+    async decr(key) {
+      const hit = mem.get(key);
+      if (!hit || !live(hit.exp)) return 0;
+      const n = Math.max(0, Number(hit.v) - 1);
+      mem.set(key, { v: String(n), exp: hit.exp });
       return n;
     },
     async hset(key, field, value, ttlSeconds = 0) {
