@@ -8,6 +8,8 @@
  * 2. recycle-to-treasury: spare tUSD8 from demo accounts that only ever RECEIVE (annotators, merchant, demo seller)
  *    → the lab treasury (BUYER, pays auto-pays and Run live) and the demo LENDER (Run live deposit).
  *    Hard budget: --max-tusd8 (default 0.6). Targets: --treasury (default 0.40) and --lender (default 0.20).
+ * 3. QA wallets (addresses from web/.env.qa): tQDAY ≥ 0.05 each from the deployer, and tUSD8 for one `pnpm qa:api` run
+ *    (QA_LENDER --qa-lender 0.05, QA_LAB --qa-lab 0.10) from the same recycled sources and budget. Skip with --no-qa.
  * Prints balances before and after.
  */
 import { readFileSync } from "node:fs";
@@ -26,6 +28,20 @@ const opt = (name: string, def: string) => {
 const MAX_TUSD8 = parseUnits(opt("max-tusd8", "0.6"), 6);
 const TREASURY_TARGET = parseUnits(opt("treasury", "0.40"), 6);
 const LENDER_TARGET = parseUnits(opt("lender", "0.20"), 6);
+const WITH_QA = !args.includes("--no-qa");
+const QA_LENDER_TARGET = parseUnits(opt("qa-lender", "0.05"), 6);
+const QA_LAB_TARGET = parseUnits(opt("qa-lab", "0.10"), 6);
+const QA_GAS = parseEther("0.05");
+/** QA burner addresses only (keys are never read here). */
+const qaEnv = (() => {
+  try {
+    return readFileSync(join(__dirname, "../../.env.qa"), "utf8");
+  } catch {
+    return "";
+  }
+})();
+const qaAddr = (n: string) => qaEnv.match(new RegExp(`^${n}_ADDRESS=(0x[0-9a-fA-F]{40})`, "m"))?.[1] as Address | undefined;
+const QA = ["QA_LENDER", "QA_VENDOR", "QA_LAB"].map((n) => [n, qaAddr(n)] as const).filter((x): x is readonly [string, Address] => !!x[1]);
 const GAS_TARGETS: [string, string][] = [
   ["DRIP", "1.0"],
   ["RELAYER", "0.5"],
@@ -60,6 +76,11 @@ async function table(title: string) {
     const [g, u] = await Promise.all([pc.getBalance({ address: a }), usd(a)]);
     console.log(`  ${n.padEnd(16)} ${a}  tQDAY ${Number(formatEther(g)).toFixed(4).padStart(9)}  tUSD8 ${formatUnits(u, 6)}`);
   }
+  if (WITH_QA)
+    for (const [n, a] of QA) {
+      const [g, u] = await Promise.all([pc.getBalance({ address: a }), usd(a)]);
+      console.log(`  ${n.padEnd(16)} ${a}  tQDAY ${Number(formatEther(g)).toFixed(4).padStart(9)}  tUSD8 ${formatUnits(u, 6)}`);
+    }
 }
 
 async function send(from: PrivateKeyAccount, label: string, tx: { to: Address; value?: bigint; data?: Hex } | { token: true; to: Address; amount: bigint }) {
@@ -93,6 +114,16 @@ async function main() {
     gasTotal += want - have;
     await send(deployer, `deployer → ${name}: ${formatEther(want - have)} tQDAY (to ${target})`, { to: a, value: want - have });
   }
+  if (WITH_QA)
+    for (const [name, a] of QA) {
+      const have = await pc.getBalance({ address: a });
+      if (have >= QA_GAS) {
+        console.log(`  ${name} already has ${formatEther(have)} (target ${formatEther(QA_GAS)})`);
+        continue;
+      }
+      gasTotal += QA_GAS - have;
+      await send(deployer, `deployer → ${name}: ${formatEther(QA_GAS - have)} tQDAY (to ${formatEther(QA_GAS)})`, { to: a, value: QA_GAS - have });
+    }
   console.log(`  total tQDAY from the deployer: ${formatEther(gasTotal)}`);
 
   // 2 · recycle spare tUSD8 into the lab treasury and the demo lender (hard budget)
@@ -103,6 +134,12 @@ async function main() {
     ["lab treasury (BUYER)", treasury, TREASURY_TARGET - (await usd(treasury))],
     ["demo LENDER", lender, LENDER_TARGET - (await usd(lender))],
   ];
+  if (WITH_QA) {
+    const ql = QA.find(([n]) => n === "QA_LENDER")?.[1];
+    const qb = QA.find(([n]) => n === "QA_LAB")?.[1];
+    if (ql) needs.push(["QA_LENDER", ql, QA_LENDER_TARGET - (await usd(ql))]);
+    if (qb) needs.push(["QA_LAB", qb, QA_LAB_TARGET - (await usd(qb))]);
+  }
   let budget = MAX_TUSD8;
   const sources = await Promise.all(RECYCLE_FROM.map(async (n) => ({ n, a: acct(n), bal: await usd(acct(n).address) })));
   let moved = 0n;
