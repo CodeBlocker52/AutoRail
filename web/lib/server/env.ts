@@ -12,7 +12,9 @@ export type KeyName =
   | "PAYOUT_SESSION_PRIVATE_KEY"
   | "LENDER_PRIVATE_KEY"
   | "SELLER_PRIVATE_KEY"
-  | "BUYER_PRIVATE_KEY";
+  | "BUYER_PRIVATE_KEY"
+  | "ROLES_OPERATOR_PRIVATE_KEY"
+  | "DRIP_PRIVATE_KEY";
 
 const cache = new Map<KeyName, PrivateKeyAccount | null>();
 

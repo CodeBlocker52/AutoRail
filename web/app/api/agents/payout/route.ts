@@ -3,6 +3,8 @@ import { json, fail, isAddr, isUint } from "@/lib/server/http";
 import { runPayout, type PayoutLine } from "@/lib/server/ops";
 import { clientIp, limited } from "@/lib/server/store";
 
+import { assertNotPaused } from "@/lib/server/caps";
+
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
@@ -13,6 +15,7 @@ export const maxDuration = 60;
  */
 export async function POST(req: Request) {
   try {
+    assertNotPaused();
     if (await limited(`payout:ip:${clientIp(req)}`, 6)) return json({ code: "RateLimited", message: "Too many requests. Wait a minute." }, 429);
     const b = (await req.json()) as { jobWallet?: unknown; lines?: unknown; idempotencyKey?: unknown };
     if (!isAddr(b.jobWallet) || !Array.isArray(b.lines) || b.lines.length === 0 || b.lines.length > 6) {

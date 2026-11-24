@@ -1,4 +1,5 @@
 import { defineChain } from "viem";
+import { currentMode } from "@/lib/autorail/mode";
 // Chain definitions from Aevum Starter Kit's @aevum-kit/aevum (MIT, PQA Labs), vendored in lib/aevum-kit.
 import { aevumFork, aevumTestnet as kitAevumTestnet, MAX_LOG_RANGE } from "@/lib/aevum-kit/chain";
 
@@ -27,17 +28,11 @@ export const targetChain = TARGET_CHAIN_ID === AEVUM_FORK_CHAIN_ID ? aevumLocalF
 export const isLiveAevum = TARGET_CHAIN_ID === AEVUM_CHAIN_ID;
 
 /**
- * Explorer links exist only for real transactions on Aevum (onchain mode, chain 44005). On the local fork (440050)
- * or in mock mode the hashes aren't on any explorer, so these return null and the UI shows a copyable hash instead.
+ * Explorer links exist only for real transactions on Aevum (Live mode, chain 44005). On the local fork (440050) or with
+ * demo data the hashes aren't on any explorer, so these return null and the UI shows a copyable hash instead.
  */
-export const hasExplorer = isLiveAevum && process.env.NEXT_PUBLIC_AUTORAIL_MODE === "onchain";
-export const NO_EXPLORER_LABEL =
-  process.env.NEXT_PUBLIC_AUTORAIL_MODE === "onchain"
-    ? "local fork, no explorer"
-    : "demo data, no explorer";
-export const explorerTx = (hash: string): string | null =>
-  hasExplorer ? `${AEVUM_EXPLORER_URL}/tx/${hash}` : null;
-export const explorerAddress = (addr: string): string | null =>
-  hasExplorer ? `${AEVUM_EXPLORER_URL}/address/${addr}` : null;
-export const explorerBlock = (block: number | bigint): string | null =>
-  hasExplorer ? `${AEVUM_EXPLORER_URL}/block/${block}` : null;
+export const hasExplorer = () => isLiveAevum && currentMode() === "onchain";
+export const noExplorerLabel = () => (currentMode() === "onchain" ? "local fork, no explorer" : "demo data, no explorer");
+export const explorerTx = (hash: string): string | null => (hasExplorer() ? `${AEVUM_EXPLORER_URL}/tx/${hash}` : null);
+export const explorerAddress = (addr: string): string | null => (hasExplorer() ? `${AEVUM_EXPLORER_URL}/address/${addr}` : null);
+export const explorerBlock = (block: number | bigint): string | null => (hasExplorer() ? `${AEVUM_EXPLORER_URL}/block/${block}` : null);

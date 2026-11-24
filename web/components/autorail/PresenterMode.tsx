@@ -14,7 +14,7 @@ import {
   X,
 } from "lucide-react";
 import type { DemoRunnerState } from "@/hooks/useDemoRunner";
-import { explorerTx, NO_EXPLORER_LABEL, TARGET_CHAIN_ID } from "@/lib/chain/aevum";
+import { explorerTx, noExplorerLabel, TARGET_CHAIN_ID } from "@/lib/chain/aevum";
 import { shortHash } from "@/lib/autorail/format";
 import { useVault } from "@/hooks/useVault";
 import { GridBackdrop } from "@/components/ui/GridBackdrop";
@@ -335,7 +335,7 @@ function TxLinks({ hashes, danger }: { hashes: string[]; danger?: boolean }) {
             )}
           >
             {shortHash(h)}{" "}
-            <span className="font-sans text-[12px] text-muted">({NO_EXPLORER_LABEL})</span>
+            <span className="font-sans text-[12px] text-muted">({noExplorerLabel()})</span>
           </span>
         ) : (
           <a

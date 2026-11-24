@@ -15,7 +15,11 @@
     "sync": "node scripts/sync-deployments.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "smoke:onchain": "tsx scripts/onchain-smoke.ts"
+    "smoke:onchain": "tsx scripts/onchain-smoke.ts",
+    "qa:api": "tsx scripts/qa/api-cycle.ts",
+    "qa:crawl": "tsx scripts/qa/crawl.ts",
+    "qa:balances": "node scripts/qa/balances.mjs",
+    "ops:topup": "tsx scripts/ops/topup.ts"
   },
   "dependencies": {
     "@rainbow-me/rainbowkit": "^2.2.11",

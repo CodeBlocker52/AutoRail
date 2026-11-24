@@ -25,7 +25,7 @@ Set these for **Production** (and Preview if you want previews to work onchain).
 
 | Variable | Value | Notes |
 |---|---|---|
-| `NEXT_PUBLIC_AUTORAIL_MODE` | `onchain` | `mock` gives the in-memory demo |
+| `NEXT_PUBLIC_AUTORAIL_MODE` | `onchain` | Default data source. Unset also means onchain; `mock` makes "Demo data" the default. Users can switch either way with the header toggle. |
 | `NEXT_PUBLIC_AUTORAIL_CHAIN_ID` | `44005` | never `440050` on Vercel |
 | `NEXT_PUBLIC_AEVUM_RPC_URL` | `https://rpc-test.qday.info` | optional (this is the default) |
 | `NEXT_PUBLIC_DEPLOYED` | `true` | landing page says "live on Aevum testnet" |
@@ -43,10 +43,33 @@ Set these for **Production** (and Preview if you want previews to work onchain).
 | `PAYOUT_SESSION_PRIVATE_KEY` | `/api/agents/payout`, "Run live" | the payout agent's session key |
 | `LENDER_PRIVATE_KEY` | "Run live" only | needs ≥ 0.08 tUSD8 per run |
 | `SELLER_PRIVATE_KEY` | "Run live" only | owner of ERC-8004 agent #0 |
-| `BUYER_PRIVATE_KEY` | "Run live" only | needs ≥ 0.10 tUSD8 per run |
+| `BUYER_PRIVATE_KEY` | Frontier Lab: auto-confirm (`/api/lab/confirm`), **auto-pay** (`/api/lab/settle`), "Run live" | the **lab treasury**: keeps `LAB_TREASURY_RESERVE` (0.10) for Run live; every auto-pay spends the invoice amount (≤ 0.10). Top up with `pnpm ops:topup`. |
+| `ROLES_OPERATOR_PRIVATE_KEY` | `/api/onboard` | owns **only** `AutorailRoles` (see `docs/ROLES_OPERATOR.md`); keep ≥ 0.005 tQDAY |
+| `DRIP_PRIVATE_KEY` | `/api/drip` | 0.02 tQDAY per new wallet; keep ≥ 0.04 tQDAY |
+| `CRON_SECRET` | Vercel Cron → `GET /api/lab/settle` | any random string; Vercel sends it as `Authorization: Bearer …` so the cron sweep skips the rate limit |
 | `KV_REST_API_URL` | all routes | Upstash Redis REST URL (added automatically by the Vercel KV / Upstash integration) |
 | `KV_REST_API_TOKEN` | all routes | Upstash REST token |
 | `AUTORAIL_RPC_URL` | optional | server-side RPC override |
+
+### Server only, not secret: caps, reserves and the kill switch
+
+Plain (non-sensitive) server variables; all optional, defaults shown. Every cap is per UTC day unless noted; current usage and remaining counts are in `/api/health` → `limits`.
+
+| Variable | Default | What |
+|---|---|---|
+| `DEMO_PAUSED` | `false` | `true` → every spending route (onboard, drip, lab confirm/settle, relay, payout agent, Run live) answers 503 "The live demo is paused…"; reads keep working |
+| `CAP_ONBOARD_DAILY` | `40` | role assignments by `/api/onboard` |
+| `CAP_DRIP_DAILY` | `25` | gas drips (also 3 per IP per day) |
+| `CAP_AUTOCONFIRM_DAILY` | `30` | Frontier Lab auto-confirms |
+| `CAP_AUTOPAY_DAILY` | `10` | Frontier Lab auto-pays, all vendors |
+| `CAP_AUTOPAY_VENDOR_DAILY` | `2` | auto-pays per vendor agent |
+| `CAP_RUNLIVE_DAILY` | `6` | "Run live" cycles |
+| `CAP_RUNLIVE_IP_HOURLY` | `1` | "Run live" starts per IP per hour |
+| `AUTOPAY_DELAY_SECONDS` | `60` | wait after funding before Frontier Lab pays |
+| `LAB_TREASURY_RESERVE` | `100000` | tUSD8 units (0.10) the lab treasury never spends on auto-pay |
+| `LIQUIDITY_RESERVE` | `75000` | tUSD8 units (0.075) of vault idle liquidity onboarded vendors can't advance against |
+
+Changing any of these needs a redeploy (or "Redeploy" without changes) to take effect.
 
 Leave out the "Run live" keys to disable live runs: preflight then reports "key isn't configured", and the Recorded run still works. The KV pair is required on Vercel: without it each serverless instance keeps its own in-memory idempotency keys and rate limits (see "Shared store" in `web/docs/UI.md`).
 
@@ -56,6 +79,7 @@ Don't set `UPSTASH_REDIS_REST_URL` / `_TOKEN` as well as the `KV_` pair: `KV_` t
 
 - [ ] `cd web && pnpm typecheck && pnpm lint && pnpm test && pnpm build` pass locally.
 - [ ] `git grep -nE "NEXT_PUBLIC_[A-Z_]*(KEY|SECRET|TOKEN)"` returns nothing.
+- [ ] `cd web && pnpm ops:topup` (dry run) shows every server wallet at target; if not, `pnpm ops:topup --execute` (locally, deployer key).
 - [ ] The role accounts have tQDAY for gas (relayer and payout agent at least), checked with `POST /api/demo/live {"action":"preflight"}` locally.
 
 ## 4. Post-deploy smoke checks
@@ -63,6 +87,15 @@ Don't set `UPSTASH_REDIS_REST_URL` / `_TOKEN` as well as the `KV_` pair: `KV_` t
 Replace `$APP` with the deployment URL.
 
 ```bash
+# 0. Health: mode onchain, KV ok, onboarding on, every wallet above its threshold
+curl -s $APP/api/health | jq '{status, mode, kv, features, rolesOperatorOwnsRoles, warnings}'
+#    → status "ok", mode "onchain", kv.ok true, all features true, rolesOperatorOwnsRoles true, warnings []
+curl -s $APP/api/health | jq '{paused, limits: .limits.caps, reserves}'
+#    → paused false; autoPay 10/day; reserves.autoPaysFundedByTreasury ≥ 1
+
+# 0b. Auto-pay sweep answers (nothing due is fine)
+curl -s $APP/api/lab/settle                 # → {"checked":N,"paid":0,"results":[…]}
+
 # 1. Relayer is configured (address only, never the key)
 curl -s $APP/api/relay                      # → {"enabled":true,"relayer":"0x4355…6E26"}
 

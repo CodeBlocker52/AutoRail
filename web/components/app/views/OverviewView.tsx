@@ -56,6 +56,7 @@ export function OverviewView() {
             <CardHeader title="Where to go" eyebrow="Roles" />
             <ul className="divide-y divide-line">
               {[
+                { href: "/app/onboard", t: "Get started", d: "Your own wallet as a vendor or lab (ERC-8004 agent + role)" },
                 { href: "/app/lend", t: "Lend", d: "Deposit tUSD8 with one permit" },
                 { href: "/app/vendor", t: "Vendor", d: "Register, invoice, take an advance" },
                 { href: "/app/lab", t: "Lab", d: "Confirm and pay invoices, gasless" },

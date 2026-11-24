@@ -90,7 +90,20 @@ UX rules from the judging criteria: clear status for each transaction (signing �
 
 
 
-## 7. Screenshots
+## 7. Self-serve live demo (M2 / M2.5)
+
+What a judge with a brand-new wallet can do on https://autorail-qday.vercel.app, alone:
+
+- **Live (Aevum) / Demo data toggle** in the header (`?mode=demo|live`, remembered). Production defaults to Live; Demo data is the in-memory scenario with a clear banner. If Aevum's RPC is down, the app offers to switch to demo data.
+- **Get started** (`/app/onboard`): connect → a one-time 0.02 tQDAY **gas drip** if the wallet is empty (tUSD8 comes from the [official faucet](https://faucet.qday.info/en)) → register an **ERC-8004 agent** from your own wallet (data-URI card) → sign one message → the roles operator assigns **Seller** (vendor) or **Buyer** (lab, tier 1). The operator owns only `AutorailRoles` and can never assign Underwriter/Payout/Merchant.
+- **Frontier Lab auto-confirms and auto-pays**: invoice our lab agent (#1) for up to 0.10 tUSD8 and it confirms with EIP-712 right away; accept the advance and, about a minute later, it **pays** with a gasless EIP-3009 signature through the relayer. You see the lenders-first waterfall and your agent's reputation gets a 100, all without a second wallet.
+- **Abuse caps and a kill switch**: global daily caps on onboardings, drips, auto-confirms, auto-pays (10/day, 2 per vendor) and "Run live" (also 1 per IP per hour); a vault liquidity reserve so onboarded vendors can't starve "Run live"; `DEMO_PAUSED=true` pauses every spending route. All env-configurable.
+- **`/api/health`** and the footer status dot: mode, chain, latest block, KV, contracts, commits, server-wallet gas, caps with remaining counts, reserves. No secrets.
+- **Ops**: `pnpm ops:topup` (local, deployer key) tops up server-wallet gas and recycles spare demo tUSD8 into the lab treasury and the demo lender, within a budget.
+
+QA: `pnpm qa:crawl` (every route × 3 widths + Lighthouse) and `pnpm qa:api` (API rails + a full live cycle on Aevum), plus Playwright fork suites for drills, onboarding and the solo-judge loop. Results: [docs/qa/QA_REPORT.md](docs/qa/QA_REPORT.md). Manual pass: [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md). Deploy: [docs/DEPLOY_VERCEL.md](docs/DEPLOY_VERCEL.md).
+
+## 8. Screenshots
 
 All from the real app. **Aevum** shots are against the live deployment on chain 44005, and their tx links open on [explorer-test.qday.info](https://explorer-test.qday.info). **Fork** shots use the same contracts deployed to a local anvil copy of Aevum (chain 440050) with the e2e test wallet, so they spend no real tUSD8 and show "local fork, no explorer". More are in [docs/screenshots/](docs/screenshots/).
 
@@ -114,7 +127,7 @@ All from the real app. **Aevum** shots are against the live deployment on chain 
 
 ![Lend page after a permit deposit](docs/screenshots/02-lend-deposit-permit-fork.png)
 
-## 8. Run it
+## 9. Run it
 
 Contracts are live on QDay Aevum testnet (chain 44005): see [contracts/README.md](contracts/README.md) for addresses, tests and the recorded demo run.
 

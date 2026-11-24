@@ -50,11 +50,11 @@ export function VaultUtilisationChart({ history }: { history: VaultPoint[] }) {
           </AreaChart>
         </ResponsiveContainer>
       </div>
-      <table className="sr-only">
+      <div className="sr-only"><table>
         <caption>Vault utilisation over time</caption>
         <thead><tr><th>Time</th><th>Utilisation</th><th>Vault assets (tUSD8)</th></tr></thead>
         <tbody>{data.map((d, i) => <tr key={i}><td>{formatDateTime(d.t)}</td><td>{d.util.toFixed(1)}%</td><td>{formatAmount(d.assets)}</td></tr>)}</tbody>
-      </table>
+      </table></div>
     </figure>
   );
 }
@@ -97,11 +97,11 @@ export function ReputationChart({ entries }: { entries: ReputationEntry[] }) {
         </ResponsiveContainer>
       </div>
       <figcaption className="mt-1 font-mono text-[11px] text-muted">Score by event: {data.map((d) => d.score).join(" → ")}</figcaption>
-      <table className="sr-only">
+      <div className="sr-only"><table>
         <caption>Reputation score history</caption>
         <thead><tr><th>Event</th><th>Time</th><th>Entry</th><th>Score</th><th>Advance limit</th></tr></thead>
         <tbody>{data.map((d) => <tr key={d.n}><td>#{d.n}</td><td>{formatDateTime(d.t)}</td><td>{d.note}</td><td>{d.score}</td><td>{formatAmount(d.limit)}</td></tr>)}</tbody>
-      </table>
+      </table></div>
     </figure>
   );
 }

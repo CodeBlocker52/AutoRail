@@ -1,6 +1,7 @@
 import "server-only";
 import { Redis } from "@upstash/redis";
 import { log } from "./log";
+import { TARGET_CHAIN_ID } from "@/lib/chain/aevum";
 
 /**
  * Shared key-value store for idempotency keys, rate limits and recorded blocked attempts.
@@ -25,6 +26,8 @@ export interface KV {
   del(key: string): Promise<void>;
   /** Atomic INCR; the TTL is applied in the same round trip. */
   incr(key: string, ttlSeconds: number): Promise<number>;
+  /** Give a slot back (e.g. a capped action that failed after counting). Never goes below 0. */
+  decr(key: string): Promise<number>;
   /** Hash field write (one record per field, so concurrent writers never overwrite each other). */
   hset(key: string, field: string, value: unknown, ttlSeconds?: number): Promise<void>;
   hvals<T>(key: string): Promise<T[]>;
@@ -52,6 +55,11 @@ export function upstashStore(redis: Redis): KV {
     async incr(key, ttlSeconds) {
       const [n] = await redis.multi().incr(key).expire(key, ttlSeconds).exec<[number, number]>();
       return Number(n);
+    },
+    async decr(key) {
+      const n = Number(await redis.decr(key));
+      if (n < 0) await redis.set(key, "0", { keepTtl: true });
+      return Math.max(0, n);
     },
     async hset(key, field, value, ttlSeconds = 0) {
       const tx = redis.multi().hset(key, { [field]: enc(value) });
@@ -94,6 +102,13 @@ export function memoryStore(): KV {
       mem.set(key, { v: String(n), exp: hit && live(hit.exp) && hit.exp ? hit.exp : Date.now() + ttlSeconds * 1000 });
       return n;
     },
+    async decr(key) {
+      const hit = mem.get(key);
+      if (!hit || !live(hit.exp)) return 0;
+      const n = Math.max(0, Number(hit.v) - 1);
+      mem.set(key, { v: String(n), exp: hit.exp });
+      return n;
+    },
     async hset(key, field, value, ttlSeconds = 0) {
       let h = hashes.get(key);
       if (!h || !live(h.exp)) hashes.set(key, (h = { m: new Map(), exp: 0 }));
@@ -113,7 +128,8 @@ export const store: KV =
 /** Fixed-window rate limit: at most `max` hits per `windowSeconds` for `bucket`. Fails open if the store is down. */
 export async function limited(bucket: string, max: number, windowSeconds = 60) {
   try {
-    return (await store.incr(`rl:${bucket}:${Math.floor(Date.now() / 1000 / windowSeconds)}`, windowSeconds)) > max;
+    // chain-scoped: local dev / the fork must never spend production's quotas in a shared KV
+    return (await store.incr(`rl:${TARGET_CHAIN_ID}:${bucket}:${Math.floor(Date.now() / 1000 / windowSeconds)}`, windowSeconds)) > max;
   } catch (e) {
     log("warn", "ratelimit.store_unavailable", { kind: store.kind, error: String((e as Error)?.message ?? e).slice(0, 120) });
     return false;

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { latestSettlement, type Settlement } from "@/lib/autorail/proof";
 import { formatAmount } from "@/lib/autorail/format";
-import { explorerTx, NO_EXPLORER_LABEL } from "@/lib/chain/aevum";
+import { explorerTx, noExplorerLabel } from "@/lib/chain/aevum";
 
 const short = (h: string) => `${h.slice(0, 6)}…${h.slice(-5)}`;
 
@@ -39,7 +39,7 @@ export function ProofStrip() {
       <span aria-hidden>·</span>
       {!explorerTx(event.txHash) ? (
         <span
-          title={`${event.txHash} (${NO_EXPLORER_LABEL})`}
+          title={`${event.txHash} (${noExplorerLabel()})`}
           className="normal-case tracking-normal"
         >
           {short(event.txHash)}

@@ -1,15 +1,19 @@
 import { Droplets } from "lucide-react";
 import type { Balances } from "@/lib/autorail/types";
-import { ONE_TUSD8 } from "@/lib/autorail/format";
 import { SITE } from "@/lib/config/contracts";
 import { cn } from "@/lib/cn";
 
 const LOW_QDAY = 10n ** 16n; // 0.01 tQDAY
 
-/** Shown when tUSD8 or tQDAY is low. tUSD8 is scarce: 1 per claim per 24h on the web faucet. */
-export function FaucetHint({ balances, className, gasless }: { balances?: Balances; className?: string; gasless?: boolean }) {
+const LOW_USD = 50_000n; // 0.05 tUSD8
+
+/**
+ * Shown only when it matters: tUSD8 below the amount the user typed (`needed`) or under 0.05, or tQDAY under 0.01
+ * (unless the action is gasless). tUSD8 is scarce: 1 per claim per 24h on the web faucet.
+ */
+export function FaucetHint({ balances, className, gasless, needed }: { balances?: Balances; className?: string; gasless?: boolean; needed?: bigint | null }) {
   if (!balances) return null;
-  const lowUsd = balances.tUSD8 < ONE_TUSD8;
+  const lowUsd = balances.tUSD8 < LOW_USD || (!!needed && balances.tUSD8 < needed);
   const lowGas = !gasless && balances.tQDAY < LOW_QDAY;
   if (!lowUsd && !lowGas) return null;
   const what = [lowUsd && "tUSD8", lowGas && "tQDAY"].filter(Boolean).join(" and ");

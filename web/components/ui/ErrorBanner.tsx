@@ -8,15 +8,19 @@ import { cn } from "@/lib/cn";
 export function ErrorBanner({ error, onDismiss, className }: { error: DecodedError | null | undefined; onDismiss?: () => void; className?: string }) {
   if (!error) return null;
   const isRevert = !!error.txHash && error.code !== "UserRejected";
+  // "Unknown" carries no information; API refusals keep their own code (e.g. RateLimited) in `raw`
+  const label = error.code !== "Unknown" ? error.code : error.raw && /^[A-Za-z]{3,40}$/.test(error.raw) ? error.raw : null;
   return (
     <div role="alert" className={cn("flex items-start gap-3 rounded-btn border border-danger/30 bg-danger-soft px-3.5 py-3 text-[14px] text-danger", className)}>
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
       <div className="min-w-0 flex-1">
         <p className="font-medium">{error.message}</p>
-        <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11.5px] uppercase tracking-[0.08em] text-danger">
-          <span>{isRevert ? `Reverted · ${error.code}` : error.code}</span>
-          {error.txHash && <TxHashLink hash={error.txHash} className="!text-danger normal-case tracking-normal" />}
-        </p>
+        {(label || error.txHash) && (
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11.5px] uppercase tracking-[0.08em] text-danger">
+            {label && <span>{isRevert ? `Reverted · ${label}` : label}</span>}
+            {error.txHash && <TxHashLink hash={error.txHash} className="!text-danger normal-case tracking-normal" />}
+          </p>
+        )}
       </div>
       {onDismiss && (
         <button onClick={onDismiss} className="grid h-6 w-6 place-items-center rounded hover:bg-danger/10" aria-label="Dismiss error">

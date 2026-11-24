@@ -21,6 +21,8 @@ export const ERROR_MESSAGES = {
   DueDateInPast: "The due date must be in the future.",
   FeeBelowFloor: "The offer's fee is below the risk band's floor.",
   InsufficientBalance: "The balance is too low for this amount.",
+  InsufficientTusd8: "Not enough tUSD8 for this step. Get tUSD8 from the faucet: https://faucet.qday.info/en",
+  InsufficientGas: "Not enough tQDAY to pay gas. Get tQDAY from the faucet (https://faucet.qday.info/en) or the gas drip on the Get started page.",
   InsufficientLiquidity: "The vault doesn't have enough idle tUSD8 for this.",
   InvalidSession: "The session settings are invalid (caps, expiry or payees).",
   InvalidSignature: "The signature doesn't match the expected signer.",

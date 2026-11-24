@@ -91,6 +91,8 @@ const lc = (a: string) => a.toLowerCase();
 const fmt6 = (v: bigint) => formatAmount(v);
 /** Vault shares have 12 decimals (_decimalsOffset() = 6 on top of tUSD8's 6). The UI shows them on the 6-decimal scale. */
 const SHARE_SCALE = 1_000_000n;
+/** Minimum tQDAY a wallet needs before we ask it to sign a gas-paying transaction. */
+const MIN_GAS = 1_000_000_000_000_000n; // 0.001 tQDAY
 const nowSec = () => BigInt(Math.floor(Date.now() / 1000));
 const bandOfFee = (feeBps: number): RiskBand => (feeBps <= 150 ? "A" : feeBps <= 200 ? "B" : feeBps <= 300 ? "C" : "D");
 
@@ -190,6 +192,10 @@ export class OnchainAutorailClient implements AutorailClient {
   }
   setWalletClient(wallet: WalletClient | undefined) {
     this.wallet = wallet;
+  }
+  private connection: { connected: boolean; chainId?: number } = { connected: false };
+  setConnectionState(state: { connected: boolean; chainId?: number }) {
+    this.connection = state;
   }
   resolveActor(_role: Role, connected?: Address) {
     return connected;
@@ -784,16 +790,58 @@ export class OnchainAutorailClient implements AutorailClient {
 
   // ─────────────────────────── writes ───────────────────────────
 
-  private async signer() {
+  /**
+   * Connected wallet on the right chain, with enough tQDAY for gas: checked BEFORE any signature, so the user gets a
+   * plain-English message instead of a wallet error halfway through. Gasless actions (Lab pay) pass needsGas: false.
+   */
+  private async signer({ needsGas = true }: { needsGas?: boolean } = {}) {
     const w = this.wallet;
+    // connected on another chain → wagmi gives no wallet client; say "switch", not "connect"
+    if (!w?.account && this.connection.connected && this.connection.chainId !== TARGET_CHAIN_ID) throw new AutorailError("WrongChain");
     if (!w?.account) throw new AutorailError("NotConnected");
     const chainId = await w.getChainId().catch(() => w.chain?.id);
     if (chainId !== TARGET_CHAIN_ID) throw new AutorailError("WrongChain");
+    if (needsGas) {
+      const bal = await this.pc.getBalance({ address: w.account.address });
+      if (bal < MIN_GAS) throw new AutorailError("InsufficientGas", `You have ${formatAmount(bal, { decimals: 18, maxFrac: 4 })} tQDAY; a transaction needs about 0.001.`);
+    }
     return { w, account: w.account };
   }
 
-  private async signTyped(p: TypedDataPayload, opts?: WriteOptions): Promise<Hex> {
-    const { w, account } = await this.signer();
+  private async requireTusd8(address: Address, needed: bigint, what: string) {
+    const bal = await this.read<bigint>(this.deployment.tUSD8, ERC20 as unknown as Abi, "balanceOf", [address]);
+    if (bal < needed) throw new AutorailError("InsufficientTusd8", `${what} needs ${formatAmount(needed)} tUSD8; this wallet has ${formatAmount(bal)}.`);
+  }
+
+  /** Wait for a tx sent earlier (e.g. before the user navigated away) and refresh the read model. */
+  async waitForTx(hash: Hash): Promise<WriteResult> {
+    const receipt = await this.pc.waitForTransactionReceipt({ hash, pollingInterval: 1_500, timeout: 180_000 });
+    await this.indexer.until(receipt.blockNumber).catch(() => undefined);
+    this.emit();
+    if (receipt.status !== "success") throw new AutorailError("Unknown", "The transaction reverted.", hash);
+    return { hash, block: Number(receipt.blockNumber) };
+  }
+
+  /** Which Autorail roles this wallet's ERC-8004 agents hold (agent ids start at 0: check `ok`, not the id). */
+  async getOnboardingStatus(address: Address) {
+    const [seller, buyer] = await Promise.all(
+      [1, 2].map((r) => this.read<[boolean, bigint]>(this.c.roles, autorailRolesAbi, "isAgent", [address, r])),
+    );
+    return { seller: seller[0] ? Number(seller[1]) : null, buyer: buyer[0] ? Number(buyer[1]) : null };
+  }
+
+  /** Ask our Frontier Lab agent to confirm an onboarded vendor's invoice (≤ 0.20 tUSD8). */
+  async requestLabConfirm(receivableId: ReceivableId): Promise<{ confirmed: boolean; txHash: Hash | null }> {
+    const res = await fetch("/api/lab/confirm", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ receivableId }) });
+    const body = await res.json();
+    if (!res.ok) throw body;
+    await this.indexer.sync().catch(() => undefined);
+    this.emit();
+    return body;
+  }
+
+  private async signTyped(p: TypedDataPayload, opts?: WriteOptions, needsGas = true): Promise<Hex> {
+    const { w, account } = await this.signer({ needsGas });
     opts?.onStage?.("signing");
     return w.signTypedData({ account, domain: p.domain, types: p.types, primaryType: p.primaryType, message: p.message } as never);
   }
@@ -831,8 +879,7 @@ export class OnchainAutorailClient implements AutorailClient {
   async depositWithPermit(amount: Amount, opts?: WriteOptions): Promise<WriteResult> {
     if (amount <= 0n) throw new AutorailError("ZeroAmount");
     const { account } = await this.signer();
-    const bal = await this.read<bigint>(this.deployment.tUSD8, ERC20 as unknown as Abi, "balanceOf", [account.address]);
-    if (bal < amount) throw new AutorailError("InsufficientBalance");
+    await this.requireTusd8(account.address, amount, "This deposit");
     const nonce = await this.read<bigint>(this.deployment.tUSD8, ERC20 as unknown as Abi, "nonces", [account.address]);
     const deadline = nowSec() + 3600n;
     const domain = await tusd8Domain(this.pc, this.deployment.tUSD8, TARGET_CHAIN_ID);
@@ -910,11 +957,10 @@ export class OnchainAutorailClient implements AutorailClient {
   }
 
   async payInvoice(receivableId: ReceivableId, opts?: WriteOptions): Promise<WriteResult & { repayment: Repayment }> {
-    const { account } = await this.signer();
+    const { account } = await this.signer({ needsGas: false }); // gasless: the relayer pays
     const td = await this.getPaymentTypedData(receivableId);
-    const bal = await this.read<bigint>(this.deployment.tUSD8, ERC20 as unknown as Abi, "balanceOf", [account.address]);
-    if (bal < (td.message.value as bigint)) throw new AutorailError("InsufficientBalance");
-    const signature = await this.signTyped(td, opts);
+    await this.requireTusd8(account.address, td.message.value as bigint, "Paying this invoice");
+    const signature = await this.signTyped(td, opts, false);
     const m = td.message as { from: Address; value: bigint; validAfter: bigint; validBefore: bigint; nonce: Hex };
     const res = await fetch("/api/relay", {
       method: "POST",

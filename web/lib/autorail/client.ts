@@ -13,6 +13,7 @@ import type {
   LivePreflight,
   DemoStep,
   GrantSessionInput,
+  Hash,
   JobWallet,
   LenderPosition,
   PayInput,
@@ -82,6 +83,14 @@ export interface AutorailClient {
   /** Mock: always "mock". Onchain: "recorded" (replay, default) or "live". */
   getDemoMode(): DemoMode;
   setDemoMode(mode: DemoMode): Promise<void>;
+  /** Wallet connection as wagmi sees it (a wallet on an unsupported chain has no wallet client). Onchain only. */
+  setConnectionState?(state: { connected: boolean; chainId?: number }): void;
+  /** Wait for a previously sent tx (pending-state recovery after navigation). Onchain only. */
+  waitForTx?(hash: Hash): Promise<WriteResult>;
+  /** Which roles the wallet's ERC-8004 agents hold. Onchain only. */
+  getOnboardingStatus?(address: Address): Promise<{ seller: number | null; buyer: number | null }>;
+  /** Ask our Frontier Lab agent to auto-confirm an onboarded vendor's invoice. Onchain only. */
+  requestLabConfirm?(receivableId: ReceivableId): Promise<{ confirmed: boolean; txHash: Hash | null }>;
   /** Live-run balance/liquidity checks (onchain only). */
   demoPreflight?(): Promise<LivePreflight>;
   resetDemo(preset: DemoPreset): Promise<void>;

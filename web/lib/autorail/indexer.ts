@@ -156,7 +156,7 @@ export class LogIndexer {
   }
 }
 
-const RETRYABLE = /(fetch failed|ECONNRESET|ETIMEDOUT|timed? ?out|429|502|503|504|header not found|HTTP request failed)/i;
+const RETRYABLE = /(fetch failed|ECONNRESET|ETIMEDOUT|timed? ?out|took too long|429|502|503|504|header not found|HTTP request failed)/i;
 /** Retry transient RPC failures with backoff. Never retries a revert. */
 export async function withRetry<T>(fn: () => Promise<T>, tries = 5): Promise<T> {
   for (let i = 0; ; i++) {

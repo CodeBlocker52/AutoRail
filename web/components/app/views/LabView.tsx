@@ -15,6 +15,7 @@ import { SkeletonRows } from "@/components/ui/Skeleton";
 import { TxStatus } from "@/components/ui/TxStatus";
 import { WaterfallBar } from "@/components/ui/WaterfallBar";
 import { FaucetHint } from "@/components/autorail/FaucetHint";
+import { OnboardCallout } from "@/components/app/OnboardCallout";
 import { TypedDataReview } from "@/components/autorail/TypedDataReview";
 
 function ConfirmModal({ r, onClose }: { r: Receivable; onClose: () => void }) {
@@ -158,7 +159,8 @@ export function LabView() {
 
   return (
     <div className="space-y-6">
-      <FaucetHint balances={bal} gasless />
+      <OnboardCallout role="lab" />
+      <FaucetHint balances={bal} gasless needed={toPay.reduce((m, r) => (r.amount > m ? r.amount : m), 0n) || null} />
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader title="Awaiting confirmation" eyebrow="EIP-712 · buyer agent" />

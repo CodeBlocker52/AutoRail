@@ -11,6 +11,7 @@ export const APP_NAV = [
 
 export function pageTitle(pathname: string): string {
   if (pathname.startsWith("/app/invoices/")) return "Invoice";
+  if (pathname.startsWith("/app/onboard")) return "Get started";
   const hit = [...APP_NAV].reverse().find((n) => pathname === n.href || pathname.startsWith(n.href + "/"));
   return hit?.label ?? "Overview";
 }

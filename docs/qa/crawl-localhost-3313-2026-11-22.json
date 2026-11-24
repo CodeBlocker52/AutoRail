@@ -1,0 +1,27 @@
+{
+  "base": "http://localhost:3313",
+  "date": "2026-11-22T18:43:21.003Z",
+  "routes": [
+    "/",
+    "/app",
+    "/app/lend",
+    "/app/vendor",
+    "/app/lab",
+    "/app/agents",
+    "/app/audit",
+    "/app/onboard",
+    "/app/invoices/0x345bd6f6c2da03cd2135e4821832026dd776bee228f0d001e6a1e0da2e557281",
+    "/design"
+  ],
+  "widths": [
+    375,
+    768,
+    1440
+  ],
+  "issues": [],
+  "notes": [
+    "proof strip → https://explorer-test.qday.info/tx/0xa3f6c71e1c1d902ca288a7ae4c70cbbe16ed2971f3f5d3c24f8d26a08178c0cb (router Repaid verified onchain)",
+    "9 internal links, 2 explorer links (1 verified on Blockscout), 3 external links"
+  ],
+  "lighthouse": {}
+}

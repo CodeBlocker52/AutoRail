@@ -9,7 +9,7 @@ import {
   formatDayLabel,
   formatEventTime,
 } from "@/lib/autorail/format";
-import { explorerBlock, hasExplorer, NO_EXPLORER_LABEL } from "@/lib/chain/aevum";
+import { explorerBlock, hasExplorer, noExplorerLabel } from "@/lib/chain/aevum";
 import { useActivity, useAgents, useReceivables } from "@/hooks";
 import { TxHashLink } from "@/components/ui/AddressChip";
 import { Badge } from "@/components/ui/Badge";
@@ -72,7 +72,7 @@ export function AuditView() {
       <Card>
         <CardHeader
           title="Onchain events"
-          eyebrow={`${events?.length ?? 0} events · ${hasExplorer ? "explorer-test.qday.info" : NO_EXPLORER_LABEL}`}
+          eyebrow={`${events?.length ?? 0} events · ${hasExplorer() ? "explorer-test.qday.info" : noExplorerLabel()}`}
         />
         <div className="mb-4 grid gap-3 sm:grid-cols-3" role="group" aria-label="Filters">
           <div>

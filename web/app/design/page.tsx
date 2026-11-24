@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "Design system", robots: { index: fal
 
 export default function DesignPage() {
   return (
-    <Providers>
+    <Providers forceMode="mock">
       <DesignView />
     </Providers>
   );

@@ -12,8 +12,17 @@ import { AEVUM_FORK_CHAIN_ID, TARGET_CHAIN_ID, targetChain } from "./chain/aevum
 declare global {
   interface Window {
     __AUTORAIL_TEST_KEY__?: Hex;
+    /** Drills: reject every signature / tx request like a user pressing "Reject" (EIP-1193 code 4001). */
+    __AUTORAIL_TEST_REJECT__?: boolean;
+    /** Drills: pretend the wallet is on another chain. */
+    __AUTORAIL_TEST_CHAIN_ID__?: number;
+    /** Drills: number of signature / tx prompts the wallet received. */
+    __AUTORAIL_TEST_PROMPTS__?: number;
   }
 }
+
+const SIGNING = new Set(["personal_sign", "eth_signTypedData_v4", "eth_sendTransaction"]);
+const walletChainId = () => window.__AUTORAIL_TEST_CHAIN_ID__ ?? TARGET_CHAIN_ID;
 
 export const testKeyAvailable = () =>
   typeof window !== "undefined" && TARGET_CHAIN_ID === AEVUM_FORK_CHAIN_ID && /^0x[0-9a-fA-F]{64}$/.test(window.__AUTORAIL_TEST_KEY__ ?? "");
@@ -41,12 +50,16 @@ export function testKeyConnector() {
     const provider = {
       async request({ method, params }: { method: string; params?: unknown[] }): Promise<unknown> {
         const p = (params ?? []) as never[];
+        if (SIGNING.has(method)) {
+          window.__AUTORAIL_TEST_PROMPTS__ = (window.__AUTORAIL_TEST_PROMPTS__ ?? 0) + 1;
+          if (window.__AUTORAIL_TEST_REJECT__) throw Object.assign(new Error("User rejected the request."), { code: 4001 });
+        }
         switch (method) {
           case "eth_accounts":
           case "eth_requestAccounts":
             return [acct().address];
           case "eth_chainId":
-            return numberToHex(TARGET_CHAIN_ID);
+            return numberToHex(walletChainId());
           case "wallet_switchEthereumChain":
             return null;
           case "personal_sign":
@@ -74,14 +87,14 @@ export function testKeyConnector() {
       name: "Test key (fork only)",
       type: "injected",
       async connect() {
-        return { accounts: [acct().address], chainId: TARGET_CHAIN_ID } as never;
+        return { accounts: [acct().address], chainId: walletChainId() } as never;
       },
       async disconnect() {},
       async getAccounts() {
         return [acct().address];
       },
       async getChainId() {
-        return TARGET_CHAIN_ID;
+        return walletChainId();
       },
       async getProvider() {
         return provider;
