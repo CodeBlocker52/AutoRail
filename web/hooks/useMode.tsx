@@ -44,25 +44,39 @@ export function ModeProvider({ children, force }: { children: ReactNode; force?:
   useEffect(() => {
     if (!ready || mode !== "onchain") return;
     let alive = true;
+    let failures = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const schedule = (ms: number) => {
+      if (alive) timer = setTimeout(check, ms);
+    };
+    // One slow RPC call must not paint the "RPC isn't answering" banner: require 2 consecutive failed checks,
+    // re-check after 15 s while failing, every 60 s while healthy.
+    const fail = () => {
+      failures++;
+      if (failures >= 2) setRpcDown(true);
+      schedule(15_000);
+    };
     const check = async () => {
       try {
         const ctl = new AbortController();
-        const t = setTimeout(() => ctl.abort(), 10_000);
+        const t = setTimeout(() => ctl.abort(), 20_000);
         const res = await fetch("/api/health", { signal: ctl.signal, cache: "no-store" });
         clearTimeout(t);
         const h = (await res.json()) as Health;
         if (!alive) return;
+        if (h.status === "down" || h.rpc?.latestBlock == null) return fail();
+        failures = 0;
         setHealth(h);
-        setRpcDown(h.status === "down" || h.rpc?.latestBlock === null);
+        setRpcDown(false);
+        schedule(60_000);
       } catch {
-        if (alive) setRpcDown(true);
+        if (alive) fail();
       }
     };
     void check();
-    const id = setInterval(check, 60_000);
     return () => {
       alive = false;
-      clearInterval(id);
+      if (timer) clearTimeout(timer);
     };
   }, [ready, mode, tick]);
 
