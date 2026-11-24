@@ -213,7 +213,16 @@ export async function health() {
   let latestBlock: number | null = null;
   let rpcError: string | null = null;
   try {
-    latestBlock = Number(await Promise.race([client.getBlockNumber(), new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 6_000))]));
+    // Aevum's public RPC occasionally stalls for a few seconds: up to 3 attempts (5 s each) before calling it "down".
+    for (let attempt = 1; ; attempt++) {
+      try {
+        latestBlock = Number(await Promise.race([client.getBlockNumber(), new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 5_000))]));
+        break;
+      } catch (e) {
+        if (attempt >= 3) throw e;
+        await new Promise((r) => setTimeout(r, 400 * attempt));
+      }
+    }
   } catch (e) {
     rpcError = String((e as Error).message ?? e).slice(0, 80);
   }
@@ -303,6 +312,7 @@ export async function health() {
     ],
     checkedAt: new Date().toISOString(),
   };
-  healthCache = { at: Date.now(), value };
+  // never keep serving a "down" verdict: the next request re-probes
+  healthCache = status === "down" ? null : { at: Date.now(), value };
   return value;
 }

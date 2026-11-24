@@ -1,0 +1,337 @@
+{
+  "base": "https://autorail-qday.vercel.app",
+  "chainId": 44005,
+  "date": "2026-11-24T18:57:43.352Z",
+  "wallets": {
+    "QA_LENDER": "0xC0327E7A5804f518584Bb5650A206dc7958D0C01",
+    "QA_VENDOR": "0x3Cd8ad29Fc4da00930438549b78643cD98fa7C00",
+    "QA_LAB": "0x59Fb43d58fb8A99A989218E3A969F3969651b10F"
+  },
+  "agents": {
+    "vendor": 6,
+    "lab": 7
+  },
+  "passed": 44,
+  "failed": 0,
+  "checks": [
+    {
+      "id": "health.1",
+      "area": "health",
+      "name": "GET /api/health → 200, chain 44005, KV ok, onchain",
+      "pass": true,
+      "detail": "status 200 ok"
+    },
+    {
+      "id": "health.2",
+      "area": "health",
+      "name": "caps, remaining counts and reserves are reported; not paused",
+      "pass": true,
+      "detail": "autoPay 0/10, onboard 0/40"
+    },
+    {
+      "id": "health.3",
+      "area": "health",
+      "name": "no secrets in /api/health",
+      "pass": true,
+      "detail": "no 64-hex values / key names"
+    },
+    {
+      "id": "proof.1",
+      "area": "proof",
+      "name": "GET /api/proof → latest Repaid, verified in its receipt",
+      "pass": true,
+      "detail": "INV-006 0xa3f6c71e…",
+      "tx": "0xa3f6c71e1c1d902ca288a7ae4c70cbbe16ed2971f3f5d3c24f8d26a08178c0cb"
+    },
+    {
+      "id": "cycle.1",
+      "area": "cycle",
+      "name": "QA_LENDER deposits 0.05 tUSD8 with one permit",
+      "pass": true,
+      "detail": "shares +48841888093",
+      "tx": "0x275cb76434561a1af22ea5ac684b9103d1cd149d4e199ef2ce2204e3eb757500"
+    },
+    {
+      "id": "onboard.1",
+      "area": "onboard",
+      "name": "role other than vendor/lab (underwriter) → 400",
+      "pass": true,
+      "detail": "400 BadRequest"
+    },
+    {
+      "id": "onboard.2",
+      "area": "onboard",
+      "name": "a wallet can't onboard someone else's agent → 403",
+      "pass": true,
+      "detail": "403 NotAgentOwner"
+    },
+    {
+      "id": "onboard.3",
+      "area": "onboard",
+      "name": "our Underwriter agent #2 can't be re-roled (refused 403/429, role unchanged)",
+      "pass": true,
+      "detail": "403 NotAgentOwner; roleOf(#2)=3"
+    },
+    {
+      "id": "onboard.4",
+      "area": "onboard",
+      "name": "repeat onboarding is idempotent (no new tx)",
+      "pass": true,
+      "detail": "200 alreadyOnboarded=true"
+    },
+    {
+      "id": "drip.1",
+      "area": "drip",
+      "name": "wallet with ≥ 0.01 tQDAY gets nothing",
+      "pass": true,
+      "detail": "200 has-gas"
+    },
+    {
+      "id": "labconfirm.1",
+      "area": "labconfirm",
+      "name": "Frontier Lab refuses > 0.10 tUSD8 (auto-confirm cap)",
+      "pass": true,
+      "detail": "403 OverAutoConfirmCap"
+    },
+    {
+      "id": "labconfirm.2",
+      "area": "labconfirm",
+      "name": "Frontier Lab auto-confirms an onboarded vendor's 0.10 invoice (EIP-712)",
+      "pass": true,
+      "detail": "200 state=2",
+      "tx": "0x2d273afc933ad33d84607609c7d8e557a8275ef9c0701e2cd5879598f249faad"
+    },
+    {
+      "id": "labconfirm.3",
+      "area": "labconfirm",
+      "name": "second request is idempotent",
+      "pass": true,
+      "detail": "200 already=true"
+    },
+    {
+      "id": "labconfirm.4",
+      "area": "labconfirm",
+      "name": "non-Created / non-onboarded invoices are not re-confirmed",
+      "pass": true,
+      "detail": "200 Repaid"
+    },
+    {
+      "id": "underwrite.1",
+      "area": "underwrite",
+      "name": "valid offer for a confirmed invoice (75% / band, explanation)",
+      "pass": true,
+      "detail": "200 advance 75000 band A"
+    },
+    {
+      "id": "underwrite.2",
+      "area": "underwrite",
+      "name": "the signed offer can't be used by a non-seller (fund reverts NotSeller)",
+      "pass": true,
+      "detail": "NotSeller"
+    },
+    {
+      "id": "autopay.1",
+      "area": "autopay",
+      "name": "not funded yet → skipped with a clear message",
+      "pass": true,
+      "detail": "skipped NotFunded"
+    },
+    {
+      "id": "autopay.2",
+      "area": "autopay",
+      "name": "right after funding → wait with a countdown",
+      "pass": true,
+      "detail": "wait retryIn 56"
+    },
+    {
+      "id": "autopay.3",
+      "area": "autopay",
+      "name": "Frontier Lab auto-pays ~60 s after funding: Repaid + NewFeedback 100 for the vendor",
+      "pass": true,
+      "detail": "paid  feedback100=true",
+      "tx": "0x452ad09ced2fb479477360f05f070ae260fbf433355e5a7cf14a8d4405059ddb"
+    },
+    {
+      "id": "autopay.4",
+      "area": "autopay",
+      "name": "idempotent: settling again → already",
+      "pass": true,
+      "detail": "already"
+    },
+    {
+      "id": "autopay.5",
+      "area": "autopay",
+      "name": "GET sweep answers (nothing left to pay)",
+      "pass": true,
+      "detail": "checked 0 paid 0"
+    },
+    {
+      "id": "underwrite.3",
+      "area": "underwrite",
+      "name": "unconfirmed invoice rejected",
+      "pass": true,
+      "detail": "400 NotConfirmed"
+    },
+    {
+      "id": "payout.1",
+      "area": "payout",
+      "name": "pays Annotator A with the session key",
+      "pass": true,
+      "detail": "200 paid",
+      "tx": "0x8f239726809c6596e7a445d5ec278e843f59de7b092fd404e63d022c35574b85"
+    },
+    {
+      "id": "payout.2",
+      "area": "payout",
+      "name": "same idempotency key twice → one payment (same tx hash)",
+      "pass": true,
+      "detail": "true"
+    },
+    {
+      "id": "payout.3",
+      "area": "payout",
+      "name": "session spent counts the payment once",
+      "pass": true,
+      "detail": "spent 20000"
+    },
+    {
+      "id": "merchant.1",
+      "area": "merchant",
+      "name": "no payment → HTTP 402 with x402 terms",
+      "pass": true,
+      "detail": "402 price 20000"
+    },
+    {
+      "id": "merchant.2",
+      "area": "merchant",
+      "name": "a tx hash that isn't a matching Paid event → not served",
+      "pass": true,
+      "detail": "402 PaymentNotFound"
+    },
+    {
+      "id": "payout.4",
+      "area": "payout",
+      "name": "pays the GPU merchant with memo = requestId",
+      "pass": true,
+      "detail": "paid",
+      "tx": "0x3c270c01e8c418ce638318a9b6ae8c9880c6c365a39f56026ec0176dc6e38f54"
+    },
+    {
+      "id": "merchant.3",
+      "area": "merchant",
+      "name": "200 only after the matching Paid(memo = requestId) event",
+      "pass": true,
+      "detail": "200 s3://kestrel-gpu/results/5c92effc.tar",
+      "tx": "0x3c270c01e8c418ce638318a9b6ae8c9880c6c365a39f56026ec0176dc6e38f54"
+    },
+    {
+      "id": "merchant.4",
+      "area": "merchant",
+      "name": "same payment again → rejected",
+      "pass": true,
+      "detail": "409 RequestUsed"
+    },
+    {
+      "id": "merchant.5",
+      "area": "merchant",
+      "name": "a paid tx can't unlock a different request id",
+      "pass": true,
+      "detail": "409 PaymentUsed"
+    },
+    {
+      "id": "payout.5",
+      "area": "payout",
+      "name": "prompt-injection line is a real mined revert: PayeeNotAllowed",
+      "pass": true,
+      "detail": "blocked PayeeNotAllowed receipt=reverted",
+      "tx": "0x69ec88168650bd2d010106806ec94f5ae8797956b68f25dc39b619fb7c1d9c50"
+    },
+    {
+      "id": "payout.6",
+      "area": "payout",
+      "name": "over the per-payment cap → OverPerTxCap (mined revert)",
+      "pass": true,
+      "detail": "blocked OverPerTxCap",
+      "tx": "0x849370e281e89ce85b99fa27abe5ad3aa91eb1f4c19c7fd662492998d8f6c09d"
+    },
+    {
+      "id": "payout.7",
+      "area": "payout",
+      "name": "after revoke → SessionRevoked (mined revert)",
+      "pass": true,
+      "detail": "blocked SessionRevoked",
+      "tx": "0xe0e41830b631ff2cee9d20375f77950dd5341e77f0956a9ddc3f9b2b5e541a87"
+    },
+    {
+      "id": "relay.1",
+      "area": "relay",
+      "name": "wrong amount rejected",
+      "pass": true,
+      "detail": "400 WrongAmount"
+    },
+    {
+      "id": "relay.2",
+      "area": "relay",
+      "name": "from ≠ confirming buyer rejected",
+      "pass": true,
+      "detail": "400 NotBuyer"
+    },
+    {
+      "id": "relay.3",
+      "area": "relay",
+      "name": "nonce not bound to the invoice rejected",
+      "pass": true,
+      "detail": "400 WrongNonce"
+    },
+    {
+      "id": "relay.4",
+      "area": "relay",
+      "name": "validBefore more than 1 h ahead rejected",
+      "pass": true,
+      "detail": "400 WindowTooLong"
+    },
+    {
+      "id": "relay.5",
+      "area": "relay",
+      "name": "valid gasless repayment succeeds (Repaid + NewFeedback for the vendor, no FeedbackFailed)",
+      "pass": true,
+      "detail": "200 repaid=true feedback=true",
+      "tx": "0x275e1f8a2453db6a324997af89a435f94471987fa747cff4228c50a7a52033da"
+    },
+    {
+      "id": "relay.6",
+      "area": "relay",
+      "name": "replayed signature rejected",
+      "pass": true,
+      "detail": "409 AlreadyRepaid"
+    },
+    {
+      "id": "relay.7",
+      "area": "relay",
+      "name": "already-repaid invoice rejected",
+      "pass": true,
+      "detail": "409 AlreadyRepaid"
+    },
+    {
+      "id": "relay.8",
+      "area": "relay",
+      "name": "rate limit triggers (per IP, 10/min)",
+      "pass": true,
+      "detail": "400,400,400,400,400,400,400,400,429,429,429,429"
+    },
+    {
+      "id": "cycle.2",
+      "area": "cycle",
+      "name": "invoice Repaid; vendor's ERC-8004 summary has the on-time feedback",
+      "pass": true,
+      "detail": "state=4 feedback count=4 avg=100"
+    },
+    {
+      "id": "onboard.5",
+      "area": "onboard",
+      "name": "onboarding is rate-limited (per IP 5/h, per wallet 3/h)",
+      "pass": true,
+      "detail": "200,200,429,429,429,429"
+    }
+  ]
+}

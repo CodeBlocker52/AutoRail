@@ -54,6 +54,12 @@ Vendor agent #6 (QA_VENDOR) → Lab agent #7 (QA_LAB), receivable `0x96d3cca6…
 | Lab pays gasless via `/api/relay`; lenders first; ERC-8004 feedback in the same tx | [0xdf95046d…](https://explorer-test.qday.info/tx/0xdf95046db609dc8f36f3d34245f5a7fa32c33f64e9f8f870a0584000f84038dc) |
 | Final: invoice Repaid; `getSummary(#6)` = 1 feedback, average 100 | — |
 
+## Production results (after M2.5 merge, deploy `1cb8cdd`, 2026-11-24/25)
+
+- **`/api/health`**: `ok`, mode onchain, chain 44005, Upstash connected, all 8 features on, roles operator owns `AutorailRoles`, not paused, every server wallet above threshold, no warnings, no secrets.
+- **`BASE=https://autorail-qday.vercel.app pnpm qa:api`: 44/44 passed** (`docs/qa/api-qa-2026-11-24.json`), including the first production **auto-pay**: QA_VENDOR's auto-confirmed 0.10 invoice to Frontier Lab was funded ([0x16622a84…](https://explorer-test.qday.info/tx/0x16622a8422e2cebf9acc58af68fd9026c7e75ba70b0d4676f05753016d2d746e)) and auto-paid ~60 s later ([0x452ad09c…](https://explorer-test.qday.info/tx/0x452ad09ced2fb479477360f05f070ae260fbf433355e5a7cf14a8d4405059ddb), Repaid + NewFeedback 100). Full live cycle: `docs/qa/live-cycle-2026-11-24.json` (repayment [0x275e1f8a…](https://explorer-test.qday.info/tx/0x275e1f8a2453db6a324997af89a435f94471987fa747cff4228c50a7a52033da)).
+- **`pnpm qa:crawl`**: 2 issues, both the same root cause (fixed in `m2.6/health-resilience`): a single slow Aevum RPC call made `/api/health` answer 503 once (one attempt, 6 s, then cached), and one cold `/api/proof` request left the proof strip empty (no client retry). Users saw the same thing as a false "RPC isn't answering" banner while live data loaded fine. Fix: health retries the RPC 3× (5 s each) and never caches "down"; the banner needs 2 consecutive failed checks (re-check every 15 s while failing); `/api/proof` is CDN-cached (`s-maxage=30, stale-while-revalidate=300`) and the strip retries. Lighthouse (production, mobile): `/` 94/100/100/100 · `/app` 59/100/100/100 (performance varies with RPC latency on first load).
+
 ## Production baseline (current deploy, before the redeploy)
 
 `BASE=https://autorail-qday.vercel.app pnpm qa:crawl` → 10 issues, all fixed on this branch: `/app/onboard` 404 (new route, ×3 widths), `/design` hydration error #418 (×3), `/design` fake hash linked to the explorer. Proof strip already resolves to a real router `Repaid`. Lighthouse: `/` 95/100/100/100, `/app` 78/92/100/100 (92 → 100 with fixes #12 and #14). Details: `docs/qa/crawl-autorail-qday-vercel-app-2026-11-22.json`.

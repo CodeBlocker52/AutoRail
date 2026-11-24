@@ -1,0 +1,150 @@
+{
+  "base": "https://autorail-qday.vercel.app",
+  "chainId": 44005,
+  "date": "2026-11-24T18:57:43.352Z",
+  "wallets": {
+    "QA_LENDER": "0xC0327E7A5804f518584Bb5650A206dc7958D0C01",
+    "QA_VENDOR": "0x3Cd8ad29Fc4da00930438549b78643cD98fa7C00",
+    "QA_LAB": "0x59Fb43d58fb8A99A989218E3A969F3969651b10F"
+  },
+  "agents": {
+    "vendor": 6,
+    "lab": 7
+  },
+  "receivableId": "0xfcb816e70fa145541aa8a7b45b05b9734edede1686ce9892b38774d5951f8905",
+  "jobWallet": "0x7F9f7298EbAb0b2Ca3Bf4227cb29C9d38612a4F2",
+  "steps": [
+    {
+      "step": "1 Lender deposit (EIP-2612 permit)",
+      "actor": "QA_LENDER",
+      "tx": "0x275cb76434561a1af22ea5ac684b9103d1cd149d4e199ef2ce2204e3eb757500",
+      "explorer": "https://explorer-test.qday.info/tx/0x275cb76434561a1af22ea5ac684b9103d1cd149d4e199ef2ce2204e3eb757500",
+      "verified": "Deposit event; vault shares increased"
+    },
+    {
+      "step": "2 QA_VENDOR already onboarded",
+      "actor": "QA_VENDOR",
+      "verified": "isAgent(Seller) → #6"
+    },
+    {
+      "step": "3 QA_LAB already onboarded",
+      "actor": "QA_LAB",
+      "verified": "isAgent(Buyer) → #7"
+    },
+    {
+      "step": "QA_JUDGE already onboarded",
+      "actor": "QA_JUDGE",
+      "verified": "isAgent(Seller) true"
+    },
+    {
+      "step": "A1 Vendor funds the auto-confirmed Frontier Lab invoice",
+      "actor": "QA_VENDOR",
+      "tx": "0x16622a8422e2cebf9acc58af68fd9026c7e75ba70b0d4676f05753016d2d746e",
+      "explorer": "https://explorer-test.qday.info/tx/0x16622a8422e2cebf9acc58af68fd9026c7e75ba70b0d4676f05753016d2d746e",
+      "verified": "Funded"
+    },
+    {
+      "step": "A2 Frontier Lab auto-pays (EIP-3009 via /api/relay)",
+      "actor": "BUYER (lab treasury) + RELAYER",
+      "tx": "0x452ad09ced2fb479477360f05f070ae260fbf433355e5a7cf14a8d4405059ddb",
+      "explorer": "https://explorer-test.qday.info/tx/0x452ad09ced2fb479477360f05f070ae260fbf433355e5a7cf14a8d4405059ddb",
+      "verified": "Repaid; NewFeedback 100 for the vendor"
+    },
+    {
+      "step": "4 Vendor creates 0.10 invoice to QA_LAB's agent",
+      "actor": "QA_VENDOR",
+      "tx": "0xe8de042f365a79e79271f7e1b5c43e653c922a9e6b92727fe1b3221fce82d373",
+      "explorer": "https://explorer-test.qday.info/tx/0xe8de042f365a79e79271f7e1b5c43e653c922a9e6b92727fe1b3221fce82d373",
+      "verified": "ReceivableCreated 0xfcb816e70f…",
+      "data": {
+        "receivableId": "0xfcb816e70fa145541aa8a7b45b05b9734edede1686ce9892b38774d5951f8905"
+      }
+    },
+    {
+      "step": "5 Lab confirms (EIP-712, payee = router)",
+      "actor": "QA_LAB",
+      "tx": "0x74e144175c8bc7db77783f80fc3421de6962f7b578d4856a4a52630748e67c6f",
+      "explorer": "https://explorer-test.qday.info/tx/0x74e144175c8bc7db77783f80fc3421de6962f7b578d4856a4a52630748e67c6f",
+      "verified": "ReceivableConfirmed; state Confirmed"
+    },
+    {
+      "step": "6 /api/underwrite → signed Offer; vendor funds",
+      "actor": "UNDERWRITER + QA_VENDOR",
+      "tx": "0xd54d7bd027a601049dedc64234add3e1866b88b16efbd9e7f079eb6a57c64f3b",
+      "explorer": "https://explorer-test.qday.info/tx/0xd54d7bd027a601049dedc64234add3e1866b88b16efbd9e7f079eb6a57c64f3b",
+      "verified": "Funded 75000 → JobWallet 0x7F9f7298EbAb0b2Ca3Bf4227cb29C9d38612a4F2",
+      "data": {
+        "band": "A",
+        "explanation": "Seller agent #6 has 3 on-time and 0 late repayments (ERC-8004: 3 feedback, average 100). The buyer is tier 1, and its signed confirmation names the Autorail router as payee, so the payment can't be redirected. That puts it in band A: up to 80% at a 1.5% fee, within a 3.00 tUSD8 seller limit. Offer: 0.075 tUSD8 over 60 days. Repaying on time raises the limit by 0.50."
+      }
+    },
+    {
+      "step": "7 Vendor grants the payout agent a session (0.03/payment, 0.07 total, 24h)",
+      "actor": "QA_VENDOR",
+      "tx": "0xb9450a413663a26a7d69958e95467fa287be497a643ab748108fed162c23bebf",
+      "explorer": "https://explorer-test.qday.info/tx/0xb9450a413663a26a7d69958e95467fa287be497a643ab748108fed162c23bebf",
+      "verified": "SessionGranted"
+    },
+    {
+      "step": "8a Payout agent pays Annotator A 0.02 (idempotent)",
+      "actor": "PAYOUT_SESSION via /api/agents/payout",
+      "tx": "0x8f239726809c6596e7a445d5ec278e843f59de7b092fd404e63d022c35574b85",
+      "explorer": "https://explorer-test.qday.info/tx/0x8f239726809c6596e7a445d5ec278e843f59de7b092fd404e63d022c35574b85",
+      "verified": "Paid; second call returned the same hash"
+    },
+    {
+      "step": "8b Payout agent pays Annotator B 0.02",
+      "actor": "PAYOUT_SESSION via /api/agents/payout",
+      "tx": "0x8fa6bbfb2ddddbd2d7cd1123ad023bdde5312a55b94cc6e185472f870e074f75",
+      "explorer": "https://explorer-test.qday.info/tx/0x8fa6bbfb2ddddbd2d7cd1123ad023bdde5312a55b94cc6e185472f870e074f75",
+      "verified": "Paid (paid)"
+    },
+    {
+      "step": "8c x402: 402 → JobWallet pays merchant 0.02 (memo = requestId) → 200",
+      "actor": "PAYOUT_SESSION + /api/merchant/gpu",
+      "tx": "0x3c270c01e8c418ce638318a9b6ae8c9880c6c365a39f56026ec0176dc6e38f54",
+      "explorer": "https://explorer-test.qday.info/tx/0x3c270c01e8c418ce638318a9b6ae8c9880c6c365a39f56026ec0176dc6e38f54",
+      "verified": "served s3://kestrel-gpu/results/5c92effc.tar"
+    },
+    {
+      "step": "9 Prompt-injected payee blocked onchain",
+      "actor": "PAYOUT_SESSION",
+      "tx": "0x69ec88168650bd2d010106806ec94f5ae8797956b68f25dc39b619fb7c1d9c50",
+      "explorer": "https://explorer-test.qday.info/tx/0x69ec88168650bd2d010106806ec94f5ae8797956b68f25dc39b619fb7c1d9c50",
+      "verified": "mined revert PayeeNotAllowed"
+    },
+    {
+      "step": "10 Over-cap payment blocked",
+      "actor": "PAYOUT_SESSION",
+      "tx": "0x849370e281e89ce85b99fa27abe5ad3aa91eb1f4c19c7fd662492998d8f6c09d",
+      "explorer": "https://explorer-test.qday.info/tx/0x849370e281e89ce85b99fa27abe5ad3aa91eb1f4c19c7fd662492998d8f6c09d",
+      "verified": "mined revert OverPerTxCap"
+    },
+    {
+      "step": "11a Vendor revokes the session",
+      "actor": "QA_VENDOR",
+      "tx": "0xf6e13b66c83dc6d4d94dd3cfc35233e36ef752bec4384ef57749d2d206dabd70",
+      "explorer": "https://explorer-test.qday.info/tx/0xf6e13b66c83dc6d4d94dd3cfc35233e36ef752bec4384ef57749d2d206dabd70",
+      "verified": "SessionKeyRevoked"
+    },
+    {
+      "step": "11b Payout after revoke blocked",
+      "actor": "PAYOUT_SESSION",
+      "tx": "0xe0e41830b631ff2cee9d20375f77950dd5341e77f0956a9ddc3f9b2b5e541a87",
+      "explorer": "https://explorer-test.qday.info/tx/0xe0e41830b631ff2cee9d20375f77950dd5341e77f0956a9ddc3f9b2b5e541a87",
+      "verified": "mined revert SessionRevoked"
+    },
+    {
+      "step": "12 Lab pays gasless (EIP-3009) via /api/relay; lenders first; ERC-8004 feedback",
+      "actor": "QA_LAB + RELAYER",
+      "tx": "0x275e1f8a2453db6a324997af89a435f94471987fa747cff4228c50a7a52033da",
+      "explorer": "https://explorer-test.qday.info/tx/0x275e1f8a2453db6a324997af89a435f94471987fa747cff4228c50a7a52033da",
+      "verified": "Repaid + NewFeedback(vendor agent) in the same tx"
+    },
+    {
+      "step": "13 Verify final state",
+      "actor": "—",
+      "verified": "state Repaid; getSummary(#6) count 4 avg 100"
+    }
+  ]
+}

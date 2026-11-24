@@ -12,9 +12,17 @@ export function ProofStrip() {
   const [s, setS] = useState<Settlement | null>(null);
   useEffect(() => {
     let alive = true;
-    latestSettlement()
-      .then((x) => alive && setS(x))
-      .catch(() => undefined);
+    // a slow RPC call or a cold server shouldn't hide the strip: retry a few times with backoff
+    const load = async (attempt: number): Promise<void> => {
+      try {
+        const x = await latestSettlement();
+        if (alive && x) setS(x);
+        else if (alive && attempt < 3) setTimeout(() => void load(attempt + 1), 2_000 * attempt);
+      } catch {
+        if (alive && attempt < 3) setTimeout(() => void load(attempt + 1), 2_000 * attempt);
+      }
+    };
+    void load(1);
     return () => {
       alive = false;
     };

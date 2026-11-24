@@ -1,0 +1,52 @@
+{
+  "base": "https://autorail-qday.vercel.app",
+  "date": "2026-11-24T19:04:43.273Z",
+  "routes": [
+    "/",
+    "/app",
+    "/app/lend",
+    "/app/vendor",
+    "/app/lab",
+    "/app/agents",
+    "/app/audit",
+    "/app/onboard",
+    "/app/invoices/0x345bd6f6c2da03cd2135e4821832026dd776bee228f0d001e6a1e0da2e557281",
+    "/design"
+  ],
+  "widths": [
+    375,
+    768,
+    1440
+  ],
+  "issues": [
+    {
+      "route": "/",
+      "width": 1440,
+      "kind": "proof-strip",
+      "detail": "no proof strip tx link"
+    },
+    {
+      "route": "/api/health",
+      "width": 0,
+      "kind": "broken-link",
+      "detail": "503"
+    }
+  ],
+  "notes": [
+    "9 internal links, 2 explorer links (1 verified on Blockscout), 3 external links"
+  ],
+  "lighthouse": {
+    "/": {
+      "performance": 94,
+      "accessibility": 100,
+      "best-practices": 100,
+      "seo": 100
+    },
+    "/app": {
+      "performance": 59,
+      "accessibility": 100,
+      "best-practices": 100,
+      "seo": 100
+    }
+  }
+}
